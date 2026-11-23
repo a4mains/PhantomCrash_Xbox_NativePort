@@ -1,0 +1,27 @@
+eu_va	kind	subsystem	symbol	notes
+0x0002e6ea	code	options	options_reset_defaults	Restores OPTION screen defaults
+0x0003eff2	code	town_map	town_map_spin_cost_read	Reads daily rider spin toll
+0x0006b3ed	code	save	save_slot_count	Three persistent quest slots
+0x0006df71	code	save	quest_set_cleared_flag	Sets cleared bit in packed money word
+0x0006df99	code	save	quest_clear_cleared_flag	Clears cleared bit on New Game
+0x0006dfc1	code	save	quest_read_cleared_flag	Reads cleared bit from packed money word
+0x0006ea05	code	world	sky_motion_tick	Animates 30 Hz sky layer rotation and UV scroll
+0x0007675e	code	rumbling	rumbling_record_win	Marks team/place beaten at battle end
+0x000b1ebb	code	money	clamp_money_limit	Clamps wallet to 99999999 NY
+0x000b3240	code	render	material_batch_setup	Binds material ambient/specular/alpha flags
+0x000b6b80	code	render	shadow_volume_cover	Draws shadow quad with stage shadow colour
+0x000b7cc0	code	render	viewport_screen_offset	Applies SCREEN ADJUST X/Y offset
+0x000b9668	code	garage	new_game_riding_clear	Initializes new game with no ridden SV
+0x0017cfc8	text	ui	club_wired_label	Club Wired screen title reference
+0x0017d5f0	text	ui	garage_label	Garage screen title reference
+0x00198900	text	ui	part_badge_label	Assemble fitted-part badge label
+0x00027d5a	code	input	control_type_flag_set	Sets Standard control-type bit 0 in robot control flags
+0x001dd4e0	data	input	control_button_masks	BUTTON CONFIG action masks
+0x001dd500	data	input	control_default_bindings	Default BUTTON CONFIG permutation
+0x001dd7e0	data	input	control_action_rows	BUTTON CONFIG row descriptors
+0x002014e8	data	render	stage_shadow_colours	Per-stage stencil shadow overlay tint
+0x002212ec	data	world	stage_object_table	Per-stage layer 1 and sky object list
+0x0022e928	data	world	stage_lighting_table	Per-stage lighting and fog parameters
+0x0026b170	code	slai_talk	haven_open	S.L.A.I. Haven talk overlay open
+0x0026c670	code	slai_talk	panel_open	S.L.A.I. talk panel open
+0x0026d0f0	code	slai_talk	news_open	S.L.A.I. news ticker open

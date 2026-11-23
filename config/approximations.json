@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "approximations": [
+    {
+      "id": "NP-APPROX-001",
+      "kind": "rendering_enhancement",
+      "subsystem": "world_renderer",
+      "status": "active",
+      "title": "SMAA 1x post-processing pass on Direct3D 11 desktop host",
+      "reason": "Optional toggleable edge-preserving anti-aliasing pass layered over resolved 3D output without altering HUD sprites."
+    },
+    {
+      "id": "NP-APPROX-002",
+      "kind": "rendering_enhancement",
+      "subsystem": "world_lighting",
+      "status": "active",
+      "title": "PCSS directional sun shadows and volumetric air scattering",
+      "reason": "Optional lighting passes tuned via data/world/dynamic_lighting.json with stencil/unlit fallback when disabled."
+    },
+    {
+      "id": "NP-APPROX-003",
+      "kind": "gameplay_option",
+      "subsystem": "training_ground",
+      "status": "active",
+      "title": "Boss entrance invulnerability window (boss_spares_players)",
+      "reason": "Prevents off-camera damage while a boss intro holds camera/controls; toggleable in data/world/training.json."
+    },
+    {
+      "id": "NP-APPROX-004",
+      "kind": "platform_port",
+      "subsystem": "multiplayer",
+      "status": "active",
+      "title": "LAN / online deterministic co-op simulation and rollback session",
+      "reason": "Port addition extending original single-player quest into synchronized 4-player co-op arenas."
+    }
+  ]
+}
