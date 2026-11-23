@@ -39,7 +39,13 @@ DesktopHost::DesktopHost(const bool fullscreen, const bool hidden,
     fail("Unable to initialize SDL");
   }
   try {
+#ifdef _WIN32
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d11,direct3d12,opengl");
+#else
+    if (SDL_GetHint(SDL_HINT_RENDER_DRIVER) == nullptr) {
+      SDL_SetHint(SDL_HINT_RENDER_DRIVER, "gpu,metal,vulkan,opengl,software");
+    }
+#endif
     int width = 0;
     int height = 0;
     initial_window_size(width, height);

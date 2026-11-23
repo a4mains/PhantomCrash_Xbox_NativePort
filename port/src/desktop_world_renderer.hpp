@@ -1,17 +1,25 @@
 #pragma once
 
-#include "desktop_world_gpu.hpp"
 #include "desktop_dynamic_lights.hpp"
 #include "desktop_sun_shadows.hpp"
 #include "desktop_volumetric_lights.hpp"
+#ifdef _WIN32
+#include "desktop_world_gpu.hpp"
 #include "desktop_world_shaders.hpp"
+#else
+#include "phantomcrash/data_roots.hpp"
+#include "phantomcrash/shadow_volume.hpp"
+#include "phantomcrash/world_model.hpp"
+#endif
 #include "phantomcrash/math3d.hpp"
 #include "phantomcrash/optical_camouflage.hpp"
 #include "phantomcrash/training_ground.hpp"
 
 #include <SDL3/SDL.h>
 
+#ifdef _WIN32
 #include <d3d11_1.h>
+#endif
 
 #include <array>
 #include <map>
@@ -161,9 +169,13 @@ public:
   WorldRenderer &operator=(const WorldRenderer &) = delete;
 
   // False when SDL's renderer is not Direct3D 11 or setup failed (logged).
+#ifdef _WIN32
   [[nodiscard]] bool available() const noexcept {
     return device_ != nullptr;
   }
+#else
+  [[nodiscard]] bool available() const noexcept;
+#endif
   // The model at `asset_path`, loaded on first use; -1 when it cannot load.
   [[nodiscard]] int model(const std::string &asset_path);
 
@@ -176,6 +188,7 @@ public:
   [[nodiscard]] int texture(const std::string &asset_path);
   // Renders `frame` and draws it over the whole window.
   void draw(const WorldFrame &frame, const WorldFrame *monitor = nullptr);
+#ifdef _WIN32
   void set_post_process(const PostProcessOptions &options) {
     if (post_process_.smaa != options.smaa) {
       smaa_failed_ = false;
@@ -332,6 +345,13 @@ private:
   Com<ID3D11ShaderResourceView> wave_view_;
   SDL_Texture *output_{};
   ID3D11Texture2D *output_texture_{}; // owned by output_
+#else
+  void set_post_process(const PostProcessOptions &options);
+
+private:
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+#endif
 };
 
 } // namespace phantomcrash

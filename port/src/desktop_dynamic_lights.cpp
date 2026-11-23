@@ -1,11 +1,14 @@
 #include "desktop_dynamic_lights.hpp"
+#ifdef _WIN32
 #include "desktop_world_shaders.hpp"
+#endif
 #include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
 
 namespace phantomcrash {
+#ifdef _WIN32
 namespace {
 void require(HRESULT result) {
   if (FAILED(result)) {
@@ -68,6 +71,7 @@ void ps_main(Output i) {
 }
 )hlsl";
 } // namespace
+#endif
 
 float bar_setback(const WorldLight &light) {
   const Vec3 axis = normalize(light.direction);
@@ -94,6 +98,7 @@ bool light_reaches(const WorldLight &light, const Vec3 centre, const float radiu
   return across * std::cos(angle) - along * std::sin(angle) <= radius;
 }
 
+#ifdef _WIN32
 DynamicLightPass::DynamicLightPass(ID3D11Device *device) {
   lights_ = buffer(device, sizeof(LightBuffer));
   draw_ = buffer(device, sizeof(CasterConstants));
@@ -232,4 +237,5 @@ void DynamicLightPass::bind(ID3D11DeviceContext *context) {
   context->PSSetSamplers(3, 1, &sampler);
   context->PSSetConstantBuffers(2, 1, &constants);
 }
+#endif
 } // namespace phantomcrash

@@ -4,23 +4,34 @@
 
 #include <SDL3/SDL.h>
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#else
+#include <cerrno>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 #include <atomic>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace phantomcrash {
 namespace {
 
 constexpr const char *dialog_title = "Phantom Crash";
+#ifdef _WIN32
 constexpr const wchar_t *extractor_name = L"phantomcrash_extract.exe";
 // A full install takes seconds; this only stops a hung installer holding the game.
 constexpr DWORD install_timeout_ms = 30 * 60 * 1000;
+#else
+constexpr const char *extractor_name = "phantomcrash_extract";
+#endif
 constexpr Uint32 dialog_poll_ms = 15;
 
 enum Choice : int { quit = 0, proceed = 1 };
@@ -67,6 +78,7 @@ std::optional<std::filesystem::path> choose_disc_image() {
   return result.path;
 }
 
+#ifdef _WIN32
 std::wstring quoted(const std::filesystem::path &path) {
   std::wstring text = path.wstring();
   // A trailing backslash would escape the closing quote.
@@ -75,6 +87,7 @@ std::wstring quoted(const std::filesystem::path &path) {
   }
   return L"\"" + text + L"\"";
 }
+#endif
 
 // Runs the installer in a console window of its own; its exit code, or -1.
 int run_installer(const std::filesystem::path &root,
@@ -87,6 +100,7 @@ int run_installer(const std::filesystem::path &root,
     throw std::runtime_error("The game data needs installing, but " + extractor.string() +
                              " is missing.");
   }
+#ifdef _WIN32
   std::wstring command = quoted(extractor) + L" install --pause-on-error --root " + quoted(root);
   if (disc) {
     command += L" --disc " + quoted(*disc);
@@ -108,6 +122,34 @@ int run_installer(const std::filesystem::path &root,
   }
   CloseHandle(process.hProcess);
   return static_cast<int>(code);
+#else
+  std::vector<std::string> storage{extractor.string(), "install", "--root", root.string()};
+  if (disc) {
+    storage.emplace_back("--disc");
+    storage.push_back(disc->string());
+  }
+  std::vector<char *> argv;
+  argv.reserve(storage.size() + 1);
+  for (std::string &arg : storage) {
+    argv.push_back(arg.data());
+  }
+  argv.push_back(nullptr);
+  const pid_t pid = fork();
+  if (pid < 0) {
+    throw std::runtime_error("Unable to fork " + extractor.string());
+  }
+  if (pid == 0) {
+    execv(extractor.c_str(), argv.data());
+    _exit(127);
+  }
+  int status = 0;
+  while (waitpid(pid, &status, 0) < 0) {
+    if (errno != EINTR) {
+      return -1;
+    }
+  }
+  return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 }
 
 } // namespace

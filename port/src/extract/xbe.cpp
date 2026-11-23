@@ -50,7 +50,11 @@ private:
 std::string iso_utc(std::uint32_t seconds) {
   const std::time_t time = seconds;
   std::tm parts{};
+#ifdef _WIN32
   gmtime_s(&parts, &time);
+#else
+  gmtime_r(&time, &parts);
+#endif
   char buffer[40];
   std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S+00:00", &parts);
   return buffer;

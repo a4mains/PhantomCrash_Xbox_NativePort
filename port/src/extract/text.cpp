@@ -2,10 +2,16 @@
 
 #include "binary.hpp"
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#else
+#include "text_cp932_table.hpp"
+
+#include <algorithm>
+#endif
 
 #include <vector>
 
@@ -57,11 +63,69 @@ bool is_space(char32_t c) {
 
 // A two-byte cp932 character, or U+FFFD when the pair maps to nothing.
 char32_t decode_pair(unsigned char lead, unsigned char trail) {
+#ifdef _WIN32
   const char pair[2]{static_cast<char>(lead), static_cast<char>(trail)};
   wchar_t wide[4]{};
   const int count = MultiByteToWideChar(932, MB_ERR_INVALID_CHARS, pair, 2, wide, 4);
   return count == 1 ? static_cast<char32_t>(wide[0]) : replacement;
+#else
+  const int lead_row = (lead >= 0x81 && lead <= 0x9F)   ? (lead - 0x81)
+                       : (lead >= 0xE0 && lead <= 0xFC) ? (0x1F + (lead - 0xE0))
+                                                        : -1;
+  if (lead_row < 0 || trail < 0x40 || trail > 0xFC) {
+    return replacement;
+  }
+  const std::size_t idx =
+      static_cast<std::size_t>(lead_row) * 189 + static_cast<std::size_t>(trail - 0x40);
+  return static_cast<char32_t>(detail::kCp932Pairs[idx]);
+#endif
 }
+
+#ifndef _WIN32
+std::uint8_t combining_class(const char32_t cp) {
+  const auto it = std::lower_bound(
+      detail::kCccEntries.begin(), detail::kCccEntries.end(), static_cast<std::uint32_t>(cp),
+      [](const detail::CccEntry &e, const std::uint32_t v) { return e.cp < v; });
+  return (it != detail::kCccEntries.end() && it->cp == cp) ? it->ccc : 0;
+}
+
+void append_nfkd(const char32_t cp, std::vector<char32_t> &out) {
+  if (cp >= 0xAC00 && cp <= 0xD7A3) {
+    const std::uint32_t s = static_cast<std::uint32_t>(cp) - 0xAC00;
+    out.push_back(0x1100 + s / 588);
+    out.push_back(0x1161 + (s % 588) / 28);
+    if (s % 28 != 0) {
+      out.push_back(0x11A7 + (s % 28));
+    }
+    return;
+  }
+  const auto it = std::lower_bound(
+      detail::kNfkdEntries.begin(), detail::kNfkdEntries.end(), static_cast<std::uint32_t>(cp),
+      [](const detail::NfkdEntry &e, const std::uint32_t v) { return e.cp < v; });
+  if (it != detail::kNfkdEntries.end() && it->cp == cp) {
+    for (std::uint8_t i = 0; i < it->length; ++i) {
+      out.push_back(detail::kNfkdPool[it->offset + i]);
+    }
+  } else {
+    out.push_back(cp);
+  }
+}
+
+char32_t compose_pair(const char32_t a, const char32_t b) {
+  if (a >= 0x1100 && a <= 0x1112 && b >= 0x1161 && b <= 0x1175) {
+    return 0xAC00 + ((a - 0x1100) * 21 + (b - 0x1161)) * 28;
+  }
+  if (a >= 0xAC00 && a <= 0xD7A3 && ((a - 0xAC00) % 28) == 0 && b >= 0x11A8 && b <= 0x11C2) {
+    return a + (b - 0x11A7);
+  }
+  const std::uint64_t key =
+      (static_cast<std::uint64_t>(a) << 21) | static_cast<std::uint64_t>(b);
+  const auto it = std::lower_bound(
+      detail::kCompEntries.begin(), detail::kCompEntries.end(), key,
+      [](const detail::CompEntry &e, const std::uint64_t k) { return e.key < k; });
+  return (it != detail::kCompEntries.end() && it->key == key) ? it->composed : 0;
+}
+#endif
 
 } // namespace
 
@@ -141,6 +205,7 @@ std::string decode_utf16le(std::string_view raw) {
 }
 
 std::string nfkc(std::string_view utf8) {
+#ifdef _WIN32
   const std::u16string wide = to_utf16(utf8);
   if (wide.empty()) {
     return {};
@@ -161,6 +226,69 @@ std::string nfkc(std::string_view utf8) {
     size = -written;
   }
   throw FormatError("NFKC normalisation failed");
+#else
+  if (utf8.empty()) {
+    return {};
+  }
+  const std::u16string wide = to_utf16(utf8);
+  std::vector<char32_t> out;
+  out.reserve(wide.size() * 2);
+  for (std::size_t i = 0; i < wide.size(); ++i) {
+    char32_t code = wide[i];
+    if (code >= 0xD800 && code <= 0xDBFF && i + 1 < wide.size() && wide[i + 1] >= 0xDC00 &&
+        wide[i + 1] <= 0xDFFF) {
+      code = 0x10000 + ((code - 0xD800) << 10) + (wide[i + 1] - 0xDC00);
+      ++i;
+    }
+    append_nfkd(code, out);
+  }
+  std::size_t run = 0;
+  while (run < out.size()) {
+    while (run < out.size() && combining_class(out[run]) == 0) {
+      ++run;
+    }
+    std::size_t end = run;
+    while (end < out.size() && combining_class(out[end]) != 0) {
+      ++end;
+    }
+    std::stable_sort(
+        out.begin() + static_cast<std::ptrdiff_t>(run),
+        out.begin() + static_cast<std::ptrdiff_t>(end),
+        [](const char32_t a, const char32_t b) { return combining_class(a) < combining_class(b); });
+    run = end;
+  }
+  if (!out.empty()) {
+    std::size_t starter_pos = 0;
+    char32_t starter = out[0];
+    std::uint8_t prev_ccc = combining_class(starter);
+    bool has_starter = (prev_ccc == 0);
+    std::size_t write = 1;
+    for (std::size_t read = 1; read < out.size(); ++read) {
+      const char32_t ch = out[read];
+      const std::uint8_t ccc = combining_class(ch);
+      const char32_t composed =
+          (has_starter && (prev_ccc < ccc || prev_ccc == 0)) ? compose_pair(starter, ch) : 0;
+      if (composed != 0) {
+        starter = composed;
+        out[starter_pos] = starter;
+      } else {
+        if (ccc == 0) {
+          starter_pos = write;
+          starter = ch;
+          has_starter = true;
+        }
+        prev_ccc = ccc;
+        out[write++] = ch;
+      }
+    }
+    out.resize(write);
+  }
+  std::string result;
+  for (const char32_t cp : out) {
+    append_utf8(result, cp);
+  }
+  return result;
+#endif
 }
 
 std::string strip(std::string_view utf8) {

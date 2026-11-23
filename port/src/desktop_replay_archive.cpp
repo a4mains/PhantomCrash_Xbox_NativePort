@@ -1,11 +1,21 @@
 #include "desktop_replay_archive.hpp"
 #include <algorithm>
-#include <fcntl.h>
-#include <io.h>
+#include <cstring>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
-#include <cstring>
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <fcntl.h>
+#include <io.h>
+#include <windows.h>
+#else
+#include <cstdio>
+#include <filesystem>
+#include <unistd.h>
+#endif
 #include <zlib.h>
 
 namespace phantomcrash {
@@ -118,6 +128,7 @@ private:
 } // namespace
 
 ReplayArchive::ReplayArchive() {
+#ifdef _WIN32
   wchar_t directory[MAX_PATH], path[MAX_PATH];
   if (!GetTempPathW(MAX_PATH, directory) || !GetTempFileNameW(directory, L"pcr", 0, path)) {
     throw std::runtime_error("Cannot create replay storage");
@@ -138,6 +149,22 @@ ReplayArchive::ReplayArchive() {
     _close(descriptor);
     throw std::runtime_error("Replay file stream failed");
   }
+#else
+  std::string pattern = (std::filesystem::temp_directory_path() / "pcrXXXXXX").string();
+  std::vector<char> path(pattern.begin(), pattern.end());
+  path.push_back('\0');
+  const int descriptor = mkstemp(path.data());
+  if (descriptor < 0) {
+    throw std::runtime_error("Cannot create replay storage");
+  }
+  file_ = fdopen(descriptor, "w+b");
+  if (!file_) {
+    close(descriptor);
+    unlink(path.data());
+    throw std::runtime_error("Replay file stream failed");
+  }
+  temp_path_ = path.data();
+#endif
   writer_ = std::thread([this] { write_frames(); });
 }
 ReplayArchive::~ReplayArchive() {
@@ -148,6 +175,11 @@ ReplayArchive::~ReplayArchive() {
   changed_.notify_all();
   writer_.join();
   std::fclose(file_);
+#ifndef _WIN32
+  if (!temp_path_.empty()) {
+    unlink(temp_path_.c_str());
+  }
+#endif
 }
 
 void ReplayArchive::write_frames() {
@@ -169,7 +201,12 @@ void ReplayArchive::write_frames() {
     std::int64_t offset = 0;
     if (ok) {
       const std::lock_guard file(file_mutex_);
+#ifdef _WIN32
       ok = _fseeki64(file_, 0, SEEK_END) == 0 && (offset = _ftelli64(file_)) >= 0 &&
+#else
+      ok = fseeko(file_, 0, SEEK_END) == 0 &&
+           (offset = static_cast<std::int64_t>(ftello(file_))) >= 0 &&
+#endif
            std::fwrite(&size, sizeof(size), 1, file_) == 1 &&
            std::fwrite(&packed_size, sizeof(packed_size), 1, file_) == 1 &&
            std::fwrite(packed.data(), 1, packed_size, file_) == packed_size;
@@ -227,7 +264,11 @@ ReplayFrame ReplayArchive::read(const std::size_t index) {
     offset = offsets_[index];
   }
   std::unique_lock file(file_mutex_);
+#ifdef _WIN32
   if (_fseeki64(file_, offset, SEEK_SET) != 0) {
+#else
+  if (fseeko(file_, static_cast<off_t>(offset), SEEK_SET) != 0) {
+#endif
     throw std::runtime_error("Replay frame unavailable");
   }
   ReplayFrame frame;

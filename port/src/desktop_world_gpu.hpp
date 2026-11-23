@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #include "phantomcrash/data_roots.hpp"
 #include "phantomcrash/shadow_volume.hpp"
 #include "phantomcrash/world_model.hpp"
@@ -59,3 +60,4 @@ private:
 };
 
 } // namespace phantomcrash
+#endif

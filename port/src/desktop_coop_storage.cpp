@@ -4,6 +4,9 @@
 #include <SDL3/SDL.h>
 #ifdef _WIN32
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#include <vector>
 #endif
 
 namespace phantomcrash {
@@ -17,6 +20,14 @@ std::filesystem::path executable() {
   }
   path.resize(count);
   return path;
+#elif defined(__APPLE__)
+  std::uint32_t size = 0;
+  _NSGetExecutablePath(nullptr, &size);
+  std::vector<char> buffer(size + 1, '\0');
+  if (_NSGetExecutablePath(buffer.data(), &size) != 0) {
+    throw std::runtime_error("Cannot identify the online executable");
+  }
+  return std::filesystem::canonical(buffer.data());
 #else
   return std::filesystem::canonical("/proc/self/exe");
 #endif
