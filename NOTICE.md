@@ -45,14 +45,9 @@ pictures are the project's own.
 
 ## Executable icon
 
-The executable icon (`port/res/phantomcrash.ico`, with its preview
-`phantomcrash.png`) contains a render of game artwork: the Plain Holy robot's
-model and textures from Phantom Crash, rendered by the port from an extracted
-disc (`--render-robot`) and laid out by `tools/make_icon.py`. That artwork
-belongs to the game's rights holders. The tile, the "PC" lettering and the
-layout are this project's. It is the only game artwork in the repository and
-in release builds; all other game data is installed from the player's own
-disc.
+The executable icon (`port/res/phantomcrash.ico` and `phantomcrash.png`) is
+generated procedurally by `tools/make_icon.py`. No game artwork or disc assets
+are included in the repository or release builds.
 
 ## Included rendering library
 
