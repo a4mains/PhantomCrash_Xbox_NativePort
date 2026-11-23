@@ -4,6 +4,7 @@
 
 #include "binary.hpp"
 #include "py_json.hpp"
+#include "xbe_profile.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -44,9 +45,21 @@ struct Xbe {
 class XbeImage {
 public:
   explicit XbeImage(ByteView data);
+  XbeImage(ByteView data, XbeProfile profile);
 
   [[nodiscard]] ByteView data() const noexcept {
     return data_;
+  }
+  [[nodiscard]] const XbeProfile &profile() const noexcept {
+    return profile_;
+  }
+  // Canonical (European) table/code virtual address mapped to this build.
+  [[nodiscard]] std::uint32_t va(std::uint32_t canonical_va) const noexcept {
+    return profile_.table(canonical_va);
+  }
+  // Canonical (European) {xbe:0x...} string address mapped to this build.
+  [[nodiscard]] std::uint32_t text_va(std::uint32_t canonical_va) const noexcept {
+    return profile_.text(canonical_va);
   }
   // File offset of `size` bytes at `address`; throws when unmapped.
   [[nodiscard]] std::size_t offset(std::uint32_t address, std::size_t size = 4) const;
@@ -81,6 +94,7 @@ public:
 private:
   ByteView data_;
   std::vector<XbeSection> sections_;
+  XbeProfile profile_;
 };
 
 } // namespace phantomcrash::extract

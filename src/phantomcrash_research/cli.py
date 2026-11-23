@@ -7,9 +7,9 @@ import json
 from pathlib import Path
 import sys
 
-from . import stats_csv, xbe
+from . import stats_csv, xbe, xbe_profile
 from .convert import convert, update_robots, update_town
-from .extract import extract
+from .extract import extract, extract_from_source
 from .mechassault import arm_swap as mechassault_arm
 from .mechassault import export as mechassault_export
 from .slai import arm_weapon as slai_arm_weapon
@@ -47,11 +47,27 @@ def _command_xbe(arguments: argparse.Namespace) -> int:
 
 def _command_extract(arguments: argparse.Namespace) -> int:
     report = None if arguments.quiet else print
-    result = extract(Path(arguments.disc), Path(arguments.output), report)
+    if arguments.source_dir:
+        source_dir = Path(arguments.source_dir)
+        output = Path(arguments.output) if arguments.output else (
+            REPOSITORY_ROOT
+            / "artifacts"
+            / xbe_profile.require_profile((source_dir / "default.xbe").read_bytes()).artifacts_dir
+        )
+        result = extract_from_source(source_dir, output, report)
+    else:
+        disc_path = Path(arguments.disc)
+        if arguments.output:
+            output = Path(arguments.output)
+        else:
+            with XdvdfsImage(disc_path) as image:
+                profile = xbe_profile.require_profile(image.read(image.find("default.xbe")))
+            output = REPOSITORY_ROOT / "artifacts" / profile.artifacts_dir
+        result = extract(disc_path, output, report)
     header = result["xbe"]
     print(
         f"Extracted {result['disc']['file_count']} files "
-        f"({result['disc']['total_bytes']:,} bytes) to {arguments.output}\n"
+        f"({result['disc']['total_bytes']:,} bytes) to {output}\n"
         f"XBE {header['title_code']} '{header['title_name']}' XDK {header['xdk_build']} "
         f"sha256 {header['sha256']}"
     )
@@ -60,14 +76,20 @@ def _command_extract(arguments: argparse.Namespace) -> int:
 
 def _command_convert(arguments: argparse.Namespace) -> int:
     report = None if arguments.quiet else print
-    manifest = convert(Path(arguments.files), Path(arguments.output), arguments.replace, report)
+    files = Path(arguments.files)
+    if arguments.output:
+        output = Path(arguments.output)
+    else:
+        profile = xbe_profile.require_profile((files / "default.xbe").read_bytes())
+        output = REPOSITORY_ROOT / "artifacts" / profile.artifacts_dir / "assets"
+    manifest = convert(files, output, arguments.replace, report)
     textures = sum(len(pack["textures"]) for pack in manifest["texture_packs"])
     effects = sum(len(bank["effects"]) for bank in manifest["sound_banks"])
     tables = manifest["tables"]
     print(
         f"Converted {textures} textures, {len(manifest['models'])} models, {effects} effects, "
         f"{tables['sprites']} sprites and "
-        f"{tables['resources']} resources to {arguments.output}"
+        f"{tables['resources']} resources to {output}"
     )
     return 0
 
@@ -248,7 +270,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     extraction = commands.add_parser("extract", help="Extract the disc into artifacts")
     extraction.add_argument("--disc", default=str(DEFAULT_DISC))
-    extraction.add_argument("--output", default=str(DEFAULT_OUTPUT))
+    extraction.add_argument("--source-dir", help="Copy from an already-extracted directory")
+    extraction.add_argument("--output", default=None)
     extraction.add_argument("--quiet", action="store_true", help="Only print the summary")
     extraction.set_defaults(handler=_command_extract)
 
@@ -256,7 +279,7 @@ def build_parser() -> argparse.ArgumentParser:
         "convert", help="Convert extracted textures, effects and tables to open formats"
     )
     conversion.add_argument("--files", default=str(DEFAULT_OUTPUT / "files"))
-    conversion.add_argument("--output", default=str(DEFAULT_ASSETS))
+    conversion.add_argument("--output", default=None)
     conversion.add_argument(
         "--replace", action="store_true", help="Delete and rebuild an earlier conversion"
     )

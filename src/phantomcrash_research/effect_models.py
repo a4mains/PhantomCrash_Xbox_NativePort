@@ -99,7 +99,7 @@ def texture_resources(tables: game_tables.GameTables, slots: list[int]) -> set[i
 
 def _flash(tables, image: game_tables._Image, index: int) -> tuple[dict, list[int]]:
     first, end, step, billboard, blended, draw_flags = struct.unpack_from(
-        "<iiiiiI", image.data, image.offset(FLASHES + index * FLASH_SIZE, 24)
+        "<iiiiiI", image.data, image.offset(image.va(FLASHES) + index * FLASH_SIZE, 24)
     )
     slots = [first + frame for frame in range(end)] if first != NO_SLOT else []
     flash = {
@@ -115,7 +115,7 @@ def _flash(tables, image: game_tables._Image, index: int) -> tuple[dict, list[in
 
 
 def _look(tables, image: game_tables._Image, index: int) -> tuple[dict, list[int], list[int]]:
-    address = LOOKS + index * LOOK_SIZE
+    address = image.va(LOOKS) + index * LOOK_SIZE
     billboard, _, _, model, sprite, trail = struct.unpack_from("<6i", image.data, image.offset(address, 24))
     scale, exhaust_offset, *exhaust_scale = struct.unpack_from("<5f", image.data, image.offset(address + 24, 20))
     look = {
@@ -138,7 +138,7 @@ def _look(tables, image: game_tables._Image, index: int) -> tuple[dict, list[int
 
 
 def _impact(image: game_tables._Image, index: int) -> dict:
-    scale, group, decal = struct.unpack_from("<fiB", image.data, image.offset(IMPACTS + index * IMPACT_SIZE, 9))
+    scale, group, decal = struct.unpack_from("<fiB", image.data, image.offset(image.va(IMPACTS) + index * IMPACT_SIZE, 9))
     return {"id": index, "group": group, "flash_scale": round(scale, DECIMALS), "decal": bool(decal)}
 
 
@@ -175,8 +175,8 @@ def effect_models(executable: bytes) -> tuple[dict, set[int], set[int]]:
             "model": model_slot(tables, FENCE_FIRST_SLOT)["model"],
             "meshes": [model_slot(tables, slot)["mesh"] for slot in model_slots[:FENCE_FRAMES]],
             "capacity": FENCE_CAPACITY, "frame_rate": 30,
-            "scale": round(struct.unpack_from("<f", image.data, image.offset(0x17AC38))[0], 6),
-            "growth": round(struct.unpack_from("<f", image.data, image.offset(0x17BEC4))[0], 6),
+            "scale": round(struct.unpack_from("<f", image.data, image.offset(image.va(0x17AC38)))[0], 6),
+            "growth": round(struct.unpack_from("<f", image.data, image.offset(image.va(0x17BEC4)))[0], 6),
             "depth": 0.2, "offset": -0.5,
             # effopt's sphere is set at the hit with radius zero (0x071869).
             # The refraction parameters are shared with 0x0c05c2's optical path.

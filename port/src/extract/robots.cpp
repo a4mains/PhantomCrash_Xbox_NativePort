@@ -89,9 +89,10 @@ Json skeleton_list(const XbeImage &image, const std::uint32_t table, const int c
 }
 
 Json part_types(const XbeImage &image, const PartTable &table, const bool byte) {
+  const std::uint32_t base = image.va(table.base);
   Json out = array();
   for (int i = 0; i < table.count; ++i) {
-    const std::uint32_t record = at(table.base, i, table.size);
+    const std::uint32_t record = at(base, i, table.size);
     push(out, byte ? integer(image.u32(record + 4) & 0xFF) : integer(image.i32(record + 8)));
   }
   return out;
@@ -99,7 +100,8 @@ Json part_types(const XbeImage &image, const PartTable &table, const bool byte) 
 
 // Per motion: first frame, loop start, loop end and last frame.
 Json timings(const XbeImage &image, const int leg_type) {
-  const std::uint32_t base = motion_timings + static_cast<std::uint32_t>(leg_type) * motions_per_bank * 16;
+  const std::uint32_t base =
+      image.va(motion_timings) + static_cast<std::uint32_t>(leg_type) * motions_per_bank * 16;
   Json out = array();
   for (std::uint32_t motion = 0; motion < motions_per_bank; ++motion) {
     push(out, rounded_list(image.f32s(base + 16 * motion, 4), decimals));
@@ -120,40 +122,54 @@ std::int64_t json_int(const Json &value) {
 }
 
 Json robot_catalogue(const XbeImage &image) {
+  const std::uint32_t body_models_va = image.va(body_models);
+  const std::uint32_t body_emblem_models_va = image.va(body_emblem_models);
+  const std::uint32_t body_motions_va = image.va(body_motions);
+  const std::uint32_t forearm_turn_va = image.va(forearm_turn);
   Json bodies = array();
   for (int t = 0; t < body_types; ++t) {
-    push(bodies, object({{"model", integer(image.u32(at(body_models, t, 4)))},
-                         {"emblem_model", integer(image.u32(at(body_emblem_models, t, 4)))},
-                         {"motions", integer(image.u32(at(body_motions, t, 4)))},
+    push(bodies, object({{"model", integer(image.u32(at(body_models_va, t, 4)))},
+                         {"emblem_model", integer(image.u32(at(body_emblem_models_va, t, 4)))},
+                         {"motions", integer(image.u32(at(body_motions_va, t, 4)))},
                          {"forearm_turn", t == forearm_turn_body_type
-                                              ? real(-python_round(image.f32(forearm_turn), decimals))
+                                              ? real(-python_round(image.f32(forearm_turn_va), decimals))
                                               : real(0.0)}}));
   }
+  const std::uint32_t paints_va = image.va(paints);
+  const std::uint32_t leg_models_va = image.va(leg_models);
+  const std::uint32_t leg_motions_va = image.va(leg_motions);
+  const std::uint32_t leg_radii_va = image.va(leg_radii);
+  const std::uint32_t leg_shadows_va = image.va(leg_shadows);
   Json legs = array();
   for (int t = 0; t < leg_types; ++t) {
-    const std::uint32_t textures = image.u32(at(paints, t, 8));
+    const std::uint32_t textures = image.u32(at(paints_va, t, 8));
     Json motions_by_side = array();
     for (const std::uint32_t table : arm_motions) {
-      push(motions_by_side, words(image, at(table, t, 8), 2));
+      push(motions_by_side, words(image, at(image.va(table), t, 8), 2));
     }
-    push(legs, object({{"model", integer(image.u32(at(leg_models, t, 4)))},
-                       {"motions", integer(image.u32(at(leg_motions, t, 4)))},
+    push(legs, object({{"model", integer(image.u32(at(leg_models_va, t, 4)))},
+                       {"motions", integer(image.u32(at(leg_motions_va, t, 4)))},
                        {"arm_motions", motions_by_side},
                        {"paints", textures != 0 ? words(image, textures, paints_per_leg_type) : array()},
                        {"timings", timings(image, t)},
-                       {"radius", rounded(image.f32(at(leg_radii, t, 8) + 4), decimals)},
-                       {"shadow_mesh", integer(image.u32(at(leg_shadows, t, 4)))}}));
+                       {"radius", rounded(image.f32(at(leg_radii_va, t, 8) + 4), decimals)},
+                       {"shadow_mesh", integer(image.u32(at(leg_shadows_va, t, 4)))}}));
   }
+  const std::uint32_t arm_models0_va = image.va(arm_models[0]);
+  const std::uint32_t arm_models1_va = image.va(arm_models[1]);
+  const std::uint32_t arm_classes_va = image.va(arm_classes);
   Json arms = array();
   for (int t = 0; t < arm_types; ++t) {
-    push(arms, object({{"models", array({integer(image.u32(at(arm_models[0], t, 4))),
-                                         integer(image.u32(at(arm_models[1], t, 4)))})},
-                       {"class", integer(image.u32(at(arm_classes, t, 4)))}}));
+    push(arms, object({{"models", array({integer(image.u32(at(arm_models0_va, t, 4))),
+                                         integer(image.u32(at(arm_models1_va, t, 4)))})},
+                       {"class", integer(image.u32(at(arm_classes_va, t, 4)))}}));
   }
+  const std::uint32_t shoulder_models0_va = image.va(shoulder_models[0]);
+  const std::uint32_t shoulder_models1_va = image.va(shoulder_models[1]);
   Json shoulders = array();
   for (int t = 0; t < shoulder_types; ++t) {
-    push(shoulders, object({{"models", array({integer(image.u32(at(shoulder_models[0], t, 4))),
-                                              integer(image.u32(at(shoulder_models[1], t, 4)))})}}));
+    push(shoulders, object({{"models", array({integer(image.u32(at(shoulder_models0_va, t, 4))),
+                                              integer(image.u32(at(shoulder_models1_va, t, 4)))})}}));
   }
   return object({{"parts", object({{"body", part_types(image, body_parts, true)},
                                    {"legs", part_types(image, leg_parts, false)},
@@ -163,13 +179,13 @@ Json robot_catalogue(const XbeImage &image) {
                  {"leg_types", legs},
                  {"arm_types", arms},
                  {"shoulder_types", shoulders},
-                 {"emblems", words(image, emblem_textures, emblems)}});
+                 {"emblems", words(image, image.va(emblem_textures), emblems)}});
 }
 
 Json robot_skeletons(const XbeImage &image) {
-  return object({{"legs", skeleton_list(image, leg_skeletons, leg_types)},
-                 {"arms", array({skeleton_list(image, arm_skeletons[0], arm_types),
-                                 skeleton_list(image, arm_skeletons[1], arm_types)})}});
+  return object({{"legs", skeleton_list(image, image.va(leg_skeletons), leg_types)},
+                 {"arms", array({skeleton_list(image, image.va(arm_skeletons[0]), arm_types),
+                                 skeleton_list(image, image.va(arm_skeletons[1]), arm_types)})}});
 }
 
 RobotResources referenced_resources(const Json &catalogue) {

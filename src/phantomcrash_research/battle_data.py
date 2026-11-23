@@ -38,11 +38,13 @@ def lesson_messages(data: bytes, tables: GameTables) -> dict:
     differs.
     """
     image = _Image(data)
+    lesson0 = image.va(LESSON_MESSAGES[0])
+    lesson1 = image.va(LESSON_MESSAGES[1])
     states = {}
     for state in range(LESSON_FIRST_STATE, LESSON_LAST_STATE + 1):
         entry: dict = {}
-        default = [image.u32(LESSON_MESSAGES[0] + state * 8 + index * 4) for index in range(2)]
-        other = [image.u32(LESSON_MESSAGES[1] + state * 8 + index * 4) for index in range(2)]
+        default = [image.u32(lesson0 + state * 8 + index * 4) for index in range(2)]
+        other = [image.u32(lesson1 + state * 8 + index * 4) for index in range(2)]
         for name, address in zip(("first", "second"), default):
             if address:
                 entry[name] = events.commands(image, tables, address)

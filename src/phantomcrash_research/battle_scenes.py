@@ -107,7 +107,7 @@ def _walk(image: _Image, address: int) -> list[dict] | None:
 
 def _gates(image: _Image, stage: int) -> list[dict]:
     points, count, headings = struct.unpack_from(
-        "<3I", image.data, image.offset(GATE_TABLE + stage * 12, 12)
+        "<3I", image.data, image.offset(image.va(GATE_TABLE) + stage * 12, 12)
     )
     gates = []
     for index in range(count):
@@ -118,15 +118,15 @@ def _gates(image: _Image, stage: int) -> list[dict]:
 
 
 def _door_leaf(image: _Image, stage: int, index: int, first_model: int) -> dict:
-    record = image.u32(OBJECT_RECORDS + stage * 4) + index * OBJECT_RECORD
+    record = image.u32(image.va(OBJECT_RECORDS) + stage * 4) + index * OBJECT_RECORD
     model = image.u32(record)
     position = struct.unpack_from("<3f", image.data, image.offset(record + 8, 12))
     rotation = struct.unpack_from("<3f", image.data, image.offset(record + 0x14, 12))
     template, gate = struct.unpack_from("<2i", image.data, image.offset(record + 0x2C, 8))
     kind = struct.unpack_from(
-        "<i", image.data, image.offset(image.u32(OBJECT_TYPES + stage * 4) + template * 4)
+        "<i", image.data, image.offset(image.u32(image.va(OBJECT_TYPES) + stage * 4) + template * 4)
     )[0]
-    triangles_at = image.u32(OBJECT_COLLISION + stage * 4) + template * OBJECT_TEMPLATE
+    triangles_at = image.u32(image.va(OBJECT_COLLISION) + stage * 4) + template * OBJECT_TEMPLATE
     collision = [
         [round(v, 4) for v in struct.unpack_from("<9f", image.data, image.offset(at, 36))]
         for at in range(triangles_at, triangles_at + OBJECT_TEMPLATE, 36)
@@ -168,8 +168,8 @@ def _doors(image: _Image, stage: int) -> list[dict]:
 
 
 def _fixed_cameras(image: _Image, stage: int) -> dict:
-    points, count = struct.unpack_from("<2I", image.data, image.offset(FIXED_CAMERAS + stage * 8, 8))
-    areas = struct.unpack_from("<I", image.data, image.offset(FIXED_CAMERA_AREAS + stage * 4))[0]
+    points, count = struct.unpack_from("<2I", image.data, image.offset(image.va(FIXED_CAMERAS) + stage * 8, 8))
+    areas = struct.unpack_from("<I", image.data, image.offset(image.va(FIXED_CAMERA_AREAS) + stage * 4))[0]
     ranges = struct.unpack_from(
         f"<{2 * FIXED_CAMERA_AREA_COUNT}I", image.data, image.offset(areas, 8 * FIXED_CAMERA_AREA_COUNT)
     )
@@ -183,10 +183,11 @@ def _fixed_cameras(image: _Image, stage: int) -> dict:
 
 
 def _supply_routes(image: _Image, stage: int) -> list[dict]:
-    count = struct.unpack_from("<i", image.data, image.offset(SUPPLY_ROUTE_COUNTS + stage * 4))[0]
+    count = struct.unpack_from("<i", image.data, image.offset(image.va(SUPPLY_ROUTE_COUNTS) + stage * 4))[0]
+    supply_va = image.va(SUPPLY_ROUTES)
     routes = []
     for route in range(count):
-        record = SUPPLY_ROUTES + (stage + GATE_STAGES * route) * SUPPLY_ROUTE
+        record = supply_va + (stage + GATE_STAGES * route) * SUPPLY_ROUTE
         points, segments, closing, drop, _unused, leave, _ = struct.unpack_from(
             "<7I", image.data, image.offset(record, SUPPLY_ROUTE)
         )
@@ -221,9 +222,10 @@ def battle_scenes(data: bytes) -> dict:
     ``leave``.
     """
     image = _Image(data)
+    scene_va = image.va(SCENE_TABLE)
     states = {}
     for state in SCENE_STATES:
-        entry = SCENE_TABLE + state * SCENE_ENTRY
+        entry = scene_va + state * SCENE_ENTRY
         camera, walk = struct.unpack_from("<2I", image.data, image.offset(entry, 8))
         relative = image.data[image.offset(entry + 8, 1)]
         if not camera:

@@ -13,9 +13,11 @@ from . import game_tables
 
 def extract(executable: bytes, catalogue: dict, packs) -> dict:
     image = game_tables._Image(executable)
+    movement_va = image.va(0x259358)
+    contact_va = image.va(0x242BD8)
     legs = []
     for index in range(len(catalogue["leg_types"])):
-        resource = image.u32(0x259358 + index * 4)
+        resource = image.u32(movement_va + index * 4)
         data = packs.read(resource)
         if data is None or len(data) != 14 * 28:
             raise ValueError(f"Invalid movement attachment resource {resource}")
@@ -31,4 +33,4 @@ def extract(executable: bytes, catalogue: dict, packs) -> dict:
             "dodge": 24, "dash": [17, 18], "dash_stop": 25,
             "takeoff": 26, "takeoff_seconds": 30 / 30,
             "contact": [list(struct.unpack_from("<3i", executable,
-                        image.offset(0x242BD8 + state * 12, 12))) for state in range(11)]}}
+                        image.offset(contact_va + state * 12, 12))) for state in range(11)]}}

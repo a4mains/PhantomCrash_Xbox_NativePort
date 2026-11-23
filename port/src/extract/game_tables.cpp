@@ -48,9 +48,10 @@ std::vector<std::string> string_table(const XbeImage &image, std::uint32_t addre
 }
 
 std::vector<Resource> read_resources(const XbeImage &image) {
+  const std::uint32_t resources_va = image.va(resources);
   std::vector<Resource> out;
   for (int index = 0; index < resource_count; ++index) {
-    const std::uint32_t base = resources + static_cast<std::uint32_t>(index) * 24;
+    const std::uint32_t base = resources_va + static_cast<std::uint32_t>(index) * 24;
     const auto data = image.data();
     const std::size_t at = image.offset(base, 24);
     const std::uint32_t path_address = u32(data, at);
@@ -88,9 +89,10 @@ std::vector<Resource> read_resources(const XbeImage &image) {
 }
 
 std::vector<Sprite> read_sprites(const XbeImage &image) {
+  const std::uint32_t sprites_va = image.va(sprites);
   std::vector<Sprite> out;
   for (int index = 0; index < sprite_count; ++index) {
-    const std::uint32_t entry = sprites + static_cast<std::uint32_t>(index) * 8;
+    const std::uint32_t entry = sprites_va + static_cast<std::uint32_t>(index) * 8;
     const std::uint32_t definition = image.u32(entry);
     Sprite s;
     s.id = index;
@@ -108,7 +110,7 @@ std::vector<Sprite> read_sprites(const XbeImage &image) {
 // One pair (glyph 829, 0x83bd) is not valid Shift-JIS; U+FFFD keeps the later
 // glyphs at their index.
 std::vector<std::string> read_font_characters(const XbeImage &image) {
-  const std::string raw = image.raw_string(image.u32(font_characters));
+  const std::string raw = image.raw_string(image.u32(image.va(font_characters)));
   std::vector<std::string> out;
   for (std::size_t i = 0; i + 1 < raw.size(); i += 2) {
     out.push_back(first_character(decode_cp932(raw.substr(i, 2), DecodeErrors::replace)));
@@ -117,9 +119,10 @@ std::vector<std::string> read_font_characters(const XbeImage &image) {
 }
 
 std::vector<MusicCredit> read_music_credits(const XbeImage &image) {
+  const std::uint32_t music_credits_va = image.va(music_credits);
   std::vector<MusicCredit> out;
   for (int index = 0; index < music_credit_count; ++index) {
-    const std::uint32_t base = music_credits + static_cast<std::uint32_t>(index) * 0x1AC;
+    const std::uint32_t base = music_credits_va + static_cast<std::uint32_t>(index) * 0x1AC;
     const int track = image.i32(base);
     if (track < 0) {
       continue;
@@ -231,39 +234,42 @@ std::vector<const Resource *> sprite_binlink_packs(const GameTables &tables) {
 }
 
 GameTables load_game_tables(ByteView xbe) {
-  if (sha256_hex(xbe) != europe_xbe_sha256) {
-    throw FormatError("Not the European default.xbe these table addresses describe");
-  }
-  const XbeImage image(xbe);
+  const XbeProfile profile = require_xbe_profile(xbe);
+  const XbeImage image(xbe, profile);
   GameTables t;
-  image.require(scene_music, scene_count * 4);
+  t.region = profile.id;
+  const std::uint32_t scene_music_va = image.va(scene_music);
+  image.require(scene_music_va, scene_count * 4);
   for (int i = 0; i < scene_count; ++i) {
-    t.scene_music.push_back(image.i32(scene_music + static_cast<std::uint32_t>(i) * 4));
+    t.scene_music.push_back(image.i32(scene_music_va + static_cast<std::uint32_t>(i) * 4));
   }
+  const std::uint32_t movies_va = image.va(movies);
   for (int i = 0; i < movie_count; ++i) {
     t.movies.push_back(
-        media_relative(image.string(image.u32(movies + static_cast<std::uint32_t>(i) * 4))
+        media_relative(image.string(image.u32(movies_va + static_cast<std::uint32_t>(i) * 4))
                            .value_or("")));
   }
-  for (const auto &path : string_table(image, binlink_packs, 8)) {
+  for (const auto &path : string_table(image, image.va(binlink_packs), 8)) {
     if (lower(path).starts_with("d:\\")) {
       t.binlink_packs.push_back(media_relative(path));
     }
   }
-  t.music = string_table(image, music_names);
+  t.music = string_table(image, image.va(music_names));
   t.resources = read_resources(image);
   t.sprites = read_sprites(image);
   t.font_characters = read_font_characters(image);
   for (std::size_t i = 0; i < t.font_characters.size(); ++i) {
     t.first_glyph.try_emplace(t.font_characters[i], i);
   }
+  const std::uint32_t font_metrics_va = image.va(font_metrics);
   for (int i = 0; i < font_metrics_count; ++i) {
-    const std::uint32_t at = font_metrics + static_cast<std::uint32_t>(i) * 2;
+    const std::uint32_t at = font_metrics_va + static_cast<std::uint32_t>(i) * 2;
     t.font_metrics.emplace_back(image.i8(at), image.u8(at + 1));
   }
   t.music_credits = read_music_credits(image);
+  const std::uint32_t volume_va = image.va(volume_millibels);
   for (std::uint32_t i = 0; i < 256; ++i) {
-    t.volume_millibels.push_back(image.i16(volume_millibels + i * 2));
+    t.volume_millibels.push_back(image.i16(volume_va + i * 2));
   }
   return t;
 }

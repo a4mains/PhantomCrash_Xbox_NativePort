@@ -7,6 +7,7 @@
 #include "phantomcrash/game_data.hpp"
 #include "phantomcrash/game_text.hpp"
 #include "xbe.hpp"
+#include "xbe_profile.hpp"
 #include "xdvdfs.hpp"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -32,8 +33,8 @@ namespace {
 
 constexpr const char *usage =
     "usage: phantomcrash_extract <command> [options]\n"
-    "  install  [--disc ISO] [--root DIR] [--convert] [--verify] [--pause-on-error]\n"
-    "           [--quiet] [--timings]\n"
+    "  install  [--disc ISO | --source-dir DIR] [--root DIR] [--convert] [--verify]\n"
+    "           [--pause-on-error] [--quiet] [--timings]\n"
     "                                             Extract and convert whatever is missing or\n"
     "                                             out of date; exits 3 when the disc is needed\n"
     "  status   [--root DIR]                      Report whether the game data is installed\n"
@@ -157,8 +158,9 @@ std::string as_text(const Json &value) {
 }
 
 int report_status(const std::filesystem::path &root) {
-  const GameDataStatus status = game_data_status(root);
-  std::cout << "Game data in " << python_path(game_data_paths(root).europe) << '\n'
+  const GameDataPaths paths = game_data_paths(root);
+  const GameDataStatus status = game_data_status(root, paths.region);
+  std::cout << "Game data in " << python_path(paths.europe) << " (" << paths.region << ")\n"
             << "  disc files: " << (status.files ? "extracted" : "missing") << '\n'
             << "  assets:     " << (status.assets ? "current" : "out of date")
             << " (converter version " << status.assets_version << ", this build "
@@ -170,19 +172,22 @@ int report_status(const std::filesystem::path &root) {
 }
 
 int install(const Arguments &arguments, const std::filesystem::path &root, const Progress &report) {
-  const InstallOptions options{optional_value(arguments, "disc"), arguments.convert,
+  const InstallOptions options{optional_value(arguments, "disc"),
+                               optional_value(arguments, "source-dir"), arguments.convert,
                                arguments.verify};
   try {
     const InstallResult result = install_game_data(root, options, report);
     if (!result.extracted && !result.converted) {
       std::cout << "The game data is already installed and current.\n";
     } else {
-      std::cout << "Game data installed in " << python_path(game_data_paths(root).europe) << '\n';
+      std::cout << "Game data installed in "
+                << python_path(game_data_paths_for_region(root, result.region).europe) << '\n';
     }
     return 0;
   } catch (const DiscNeeded &needed) {
-    std::cerr << needed.what() << "\nPass the disc image with --disc, or drop it onto "
-              << "\"Install Game Data.bat\".\n";
+    std::cerr << needed.what()
+              << "\nPass the disc image with --disc (or an extracted folder with --source-dir), "
+              << "or drop it onto \"Install Game Data.bat\".\n";
     return exit_disc_needed;
   }
 }
@@ -232,7 +237,18 @@ int run(const Arguments &arguments) {
     return 0;
   }
   if (arguments.command == "extract") {
-    const auto output = value(arguments, "output", output_root);
+    std::filesystem::path default_output = output_root;
+    if (!optional_value(arguments, "output")) {
+      XdvdfsImage disc_image(disc);
+      for (const auto &entry : disc_image.files()) {
+        if (entry.path == "/default.xbe" || entry.path == "/DEFAULT.XBE") {
+          const auto region = require_xbe_profile(disc_image.read(entry)).artifacts_dir;
+          default_output = game_data_paths_for_region(root, region).europe;
+          break;
+        }
+      }
+    }
+    const auto output = value(arguments, "output", default_output);
     const Json result = extract_disc(disc, output, report);
     const Json &disc_record = *result.find("disc");
     const Json &header = *result.find("xbe");
@@ -246,7 +262,12 @@ int run(const Arguments &arguments) {
   }
   if (arguments.command == "convert") {
     const auto files = value(arguments, "files", output_root / "files");
-    const auto output = value(arguments, "output", output_root / "assets");
+    std::filesystem::path default_assets = output_root / "assets";
+    if (!optional_value(arguments, "output") && std::filesystem::is_regular_file(files / "default.xbe")) {
+      const auto region = require_xbe_profile(read_file(files / "default.xbe")).artifacts_dir;
+      default_assets = game_data_paths_for_region(root, region).assets;
+    }
+    const auto output = value(arguments, "output", default_assets);
     const Json manifest =
         convert_assets(files, output, arguments.replace, game_text_sources(root), report);
     std::size_t textures = 0;

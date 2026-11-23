@@ -1,4 +1,5 @@
 #include "phantomcrash/data_roots.hpp"
+#include "phantomcrash/game_data.hpp"
 #include "phantomcrash/game_text.hpp"
 #include "phantomcrash/slai_content.hpp"
 
@@ -120,15 +121,15 @@ DataRoots::DataRoots(std::filesystem::path data, std::filesystem::path mods,
       text_(std::make_shared<TextCache>()) {}
 
 DataRoots DataRoots::standard(const std::filesystem::path &root) {
+  const GameDataPaths paths = game_data_paths(root);
   return DataRoots(root / "data", root / "mods",
-                   {root / "mods", root / "artifacts" / "europe" / "assets",
-                    root / "artifacts" / "europe" / "files" / "Media", root / "data" / "assets"});
+                   {root / "mods", paths.assets, paths.files / "Media", root / "data" / "assets"});
 }
 
 DataRoots DataRoots::shipped(const std::filesystem::path &root) {
+  const GameDataPaths paths = game_data_paths(root);
   return DataRoots(root / "data", {},
-                   {root / "artifacts" / "europe" / "assets",
-                    root / "artifacts" / "europe" / "files" / "Media", root / "data" / "assets"});
+                   {paths.assets, paths.files / "Media", root / "data" / "assets"});
 }
 
 DataRoots DataRoots::configured(const std::filesystem::path &root, bool slai) {

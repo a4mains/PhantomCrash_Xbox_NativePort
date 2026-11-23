@@ -581,6 +581,7 @@ if(PHANTOMCRASH_BUILD_DESKTOP)
     src/extract/town_map_scrub.cpp
     src/extract/town_tables.cpp
     src/extract/xbe.cpp
+    src/extract/xbe_profile.cpp
     src/extract/xbox_texture.cpp
     src/extract/xdvdfs.cpp
   )

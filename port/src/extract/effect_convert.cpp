@@ -126,10 +126,13 @@ Json route_points(const XbeImage &image, std::uint32_t address, std::uint32_t co
 }
 
 Json ship_table(const XbeImage &image) {
+  const std::uint32_t routes_va = image.va(ship_routes);
+  const std::uint32_t last_segment_va = image.va(ship_last_segment);
   Json routes = object();
   for (std::uint32_t stage = 0; stage < 8; ++stage) {
     put(routes, std::to_string(stage),
-        route_points(image, image.u32(ship_routes + stage * 4), image.u32(ship_last_segment + stage * 4) + 1));
+        route_points(image, image.u32(routes_va + stage * 4),
+                     image.u32(last_segment_va + stage * 4) + 1));
   }
   Json models = array();
   for (const bool night : {false, true}) {
@@ -155,10 +158,10 @@ Json ship_table(const XbeImage &image) {
   }
   return object({{"routes", routes},
                  {"models", models},
-                 {"segment_per_second", real(image.f32(ship_segment_speed) * ship_tick_rate)},
-                 {"hinge_per_second", real(image.f32(ship_hinge_speed) * ship_tick_rate)},
-                 {"spin_per_second", real(image.f32(ship_spin_speed) * ship_tick_rate)},
-                 {"hinge_max", real(image.f32(ship_hinge_max))},
+                 {"segment_per_second", real(image.f32(image.va(ship_segment_speed)) * ship_tick_rate)},
+                 {"hinge_per_second", real(image.f32(image.va(ship_hinge_speed)) * ship_tick_rate)},
+                 {"spin_per_second", real(image.f32(image.va(ship_spin_speed)) * ship_tick_rate)},
+                 {"hinge_max", real(image.f32(image.va(ship_hinge_max)))},
                  {"open_segments", integers(std::vector<int>{12, 22})},
                  {"close_segments", integers(std::vector<int>{15, 27})}});
 }

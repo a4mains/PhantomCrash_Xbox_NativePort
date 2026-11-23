@@ -100,7 +100,8 @@ Json weapon_mounts(const XbeImage &image, const Json &catalogue, BinlinkPacks &p
       }
       for (std::size_t side = 0; side < tables.size(); ++side) {
         const auto model_id = json_int(field(definitions[part], "models").array().at(side));
-        const std::uint32_t resource = image.u32(tables[side] + static_cast<std::uint32_t>(part) * 4);
+        const std::uint32_t resource =
+            image.u32(image.va(tables[side]) + static_cast<std::uint32_t>(part) * 4);
         const auto source = packs.read(resource);
         const auto geometry = packs.read(static_cast<std::uint32_t>(model_id));
         if (!source || !geometry) {
@@ -124,8 +125,9 @@ Json movement_mounts(const XbeImage &image, ByteView executable, const Json &cat
                      BinlinkPacks &packs) {
   Json legs = array();
   const std::size_t leg_count = field(catalogue, "leg_types").array().size();
+  const std::uint32_t movement_va = image.va(movement_resources);
   for (std::size_t index = 0; index < leg_count; ++index) {
-    const std::uint32_t resource = image.u32(movement_resources + static_cast<std::uint32_t>(index) * 4);
+    const std::uint32_t resource = image.u32(movement_va + static_cast<std::uint32_t>(index) * 4);
     const auto data = packs.read(resource);
     if (!data || data->size() != movement_slots * movement_slot_size) {
       throw FormatError("Invalid movement attachment resource " + std::to_string(resource));
@@ -147,8 +149,9 @@ Json movement_mounts(const XbeImage &image, ByteView executable, const Json &cat
     push(legs, object({{"resource", integer(resource)}, {"slots", slots}}));
   }
   Json contact = array();
+  const std::uint32_t contact_va = image.va(contact_groups);
   for (int state = 0; state < contact_states; ++state) {
-    const std::size_t at = image.offset(contact_groups + static_cast<std::uint32_t>(state) * 12, 12);
+    const std::size_t at = image.offset(contact_va + static_cast<std::uint32_t>(state) * 12, 12);
     push(contact, array({integer(i32(executable, at)), integer(i32(executable, at + 4)),
                          integer(i32(executable, at + 8))}));
   }

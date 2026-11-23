@@ -58,8 +58,8 @@ def wreck_collision(mesh: model.Mesh) -> list[list[float]]:
 
 
 def records(image: game_tables._Image, stage: int) -> list[dict]:
-    address = image.u32(OBJECT_RECORDS + stage * 4)
-    types = image.u32(OBJECT_TYPES + stage * 4)
+    address = image.u32(image.va(OBJECT_RECORDS) + stage * 4)
+    types = image.u32(image.va(OBJECT_TYPES) + stage * 4)
     result = []
     for index in range(MAX_OBJECTS if stage < CITY_STAGES else 8):
         words = OBJECT_RECORD.unpack_from(image.data, image.offset(address + index * 52, 52))
@@ -71,8 +71,9 @@ def records(image: game_tables._Image, stage: int) -> list[dict]:
             "template": words[11], "kind": image.u32(types + words[11] * 4),
             "gate": words[12],
         })
+    collision_va = image.va(OBJECT_COLLISION)
     for entry in result:
-        address = image.u32(OBJECT_COLLISION + stage * 4) + entry["template"] * COLLISION_BYTES
+        address = image.u32(collision_va + stage * 4) + entry["template"] * COLLISION_BYTES
         entry["collision"] = [list(struct.unpack_from("<9f", image.data, image.offset(at, 36)))
                               for at in range(address, address + COLLISION_BYTES, 36)]
         kind = entry["kind"]

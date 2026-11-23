@@ -182,7 +182,7 @@ Json command_json(const XbeImage &image, const GameTables &tables,
 }
 
 Json pose_json(const XbeImage &image, const GameTables &tables, const int pose_id) {
-  const std::uint32_t address = talk_poses + static_cast<std::uint32_t>(pose_id) * 0x1C;
+  const std::uint32_t address = image.va(talk_poses) + static_cast<std::uint32_t>(pose_id) * 0x1C;
   const auto ids = image.ints(address, 5);
   const std::size_t at = image.offset(address + 20, 8);
   const auto offsets = image.data().subspan(at, 8);
@@ -244,9 +244,11 @@ Json event_commands(const XbeImage &image, const GameTables &tables, std::uint32
 }
 
 Json talk_tables(const XbeImage &image, const GameTables &tables) {
+  const std::uint32_t backgrounds_va = image.va(talk_backgrounds);
+  const std::uint32_t characters_va = image.va(talk_characters);
   Json backgrounds = array();
   for (int index = 0; index < talk_background_count; ++index) {
-    const auto ids = image.ints(talk_backgrounds + 8 * static_cast<std::uint32_t>(index), 2);
+    const auto ids = image.ints(backgrounds_va + 8 * static_cast<std::uint32_t>(index), 2);
     Json back = sprite_json(tables, ids[0]);
     put(back, "position", array({integer(0), integer(0)}));
     put(back, "layer", integer(0));
@@ -257,7 +259,7 @@ Json talk_tables(const XbeImage &image, const GameTables &tables) {
   }
   Json characters = array();
   for (int index = 0; index < talk_character_count; ++index) {
-    const auto ids = image.ints(talk_characters + 0x28 * static_cast<std::uint32_t>(index), 10);
+    const auto ids = image.ints(characters_va + 0x28 * static_cast<std::uint32_t>(index), 10);
     const Resource &resource = tables.resources.at(static_cast<std::size_t>(ids[0]));
     const std::string path = pack_name(*resource.path);
     Json images = array();
@@ -276,13 +278,14 @@ Json talk_tables(const XbeImage &image, const GameTables &tables) {
 
 Json story_events(const XbeImage &image, const GameTables &tables) {
   const XbeSection &segment = image.section("EVENTSEG");
+  const std::uint32_t event_table_va = image.va(event_table);
   std::vector<std::int32_t> scenes;
   for (int index = 0; index < event_count; ++index) {
-    scenes.push_back(image.ints(event_table + static_cast<std::uint32_t>(index) * event_record, 1)[0]);
+    scenes.push_back(image.ints(event_table_va + static_cast<std::uint32_t>(index) * event_record, 1)[0]);
   }
   Json records = array();
   for (int index = 0; index < event_count; ++index) {
-    const std::uint32_t base = event_table + static_cast<std::uint32_t>(index) * event_record;
+    const std::uint32_t base = event_table_va + static_cast<std::uint32_t>(index) * event_record;
     const auto ids = image.ints(base, 3);
     const auto raw = image.data().subspan(image.offset(base, event_record), event_record);
     const std::int16_t music = i16(raw, 0x1E);

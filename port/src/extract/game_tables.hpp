@@ -15,6 +15,8 @@ namespace phantomcrash::extract {
 
 inline constexpr const char *europe_xbe_sha256 =
     "bdbe2c3eb2361395babfe6095d1a2da72f6581dccb34812b8d45e084c6c903c6";
+inline constexpr const char *usa_xbe_sha256 =
+    "ee1caf6b0bde47abb104368657c44d078904684482ff60be5958e2201f5162d0";
 inline constexpr std::uint32_t resource_model = 0;
 inline constexpr std::uint32_t resource_texture_pack = 3;
 
@@ -48,6 +50,7 @@ struct MusicCredit {
 };
 
 struct GameTables {
+  std::string region{"europe"};
   std::vector<std::string> music;
   std::vector<int> scene_music;
   std::vector<std::string> movies;

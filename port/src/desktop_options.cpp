@@ -43,8 +43,8 @@ const char *usage() {
          "[--online-resource-check] [--online-stress-check [seconds]]\n"
          "[--online-host <port> | --online-join <IPv4:port>]\n"
          "\n"
-         "The root folder holds data/, mods/ and artifacts/europe (the extracted and\n"
-         "converted game files). No game files are bundled.\n";
+         "The root folder holds data/, mods/ and artifacts/europe (or artifacts/usa)\n"
+         "(the extracted and converted game files). No game files are bundled.\n";
 }
 
 Options parse_options(const int argc, char **argv) {

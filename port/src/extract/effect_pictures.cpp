@@ -117,7 +117,7 @@ std::string hex(std::uint32_t value) {
 }
 
 Json flash(const Slots &slots, const XbeImage &image, int index, std::vector<std::int64_t> &textures) {
-  const std::uint32_t at = flashes + static_cast<std::uint32_t>(index) * flash_size;
+  const std::uint32_t at = image.va(flashes) + static_cast<std::uint32_t>(index) * flash_size;
   image.require(at, 24);
   const std::int32_t first = image.i32(at);
   const std::int32_t end = image.i32(at + 4);
@@ -139,7 +139,7 @@ Json flash(const Slots &slots, const XbeImage &image, int index, std::vector<std
 
 Json look(const Slots &slots, const XbeImage &image, int index, std::vector<std::int64_t> &models,
           std::vector<std::int64_t> &textures) {
-  const std::uint32_t at = looks + static_cast<std::uint32_t>(index) * look_size;
+  const std::uint32_t at = image.va(looks) + static_cast<std::uint32_t>(index) * look_size;
   const auto ints = image.i32s(at, 6);
   const auto floats = image.f32s(at + 24, 5);
   const std::int32_t model = ints[3];
@@ -169,7 +169,7 @@ Json look(const Slots &slots, const XbeImage &image, int index, std::vector<std:
 }
 
 Json impact(const XbeImage &image, int index) {
-  const std::uint32_t at = impacts + static_cast<std::uint32_t>(index) * impact_size;
+  const std::uint32_t at = image.va(impacts) + static_cast<std::uint32_t>(index) * impact_size;
   image.require(at, 9);
   return object({{"id", integer(index)},
                  {"group", integer(image.i32(at + 4))},
@@ -229,8 +229,8 @@ Json effect_pictures(const XbeImage &image, const GameTables &tables, EffectReso
                          {"meshes", fence_meshes},
                          {"capacity", integer(fence_capacity)},
                          {"frame_rate", integer(30)},
-                         {"scale", rounded(image.f32(fence_scale), 6)},
-                         {"growth", rounded(image.f32(fence_growth), 6)},
+                         {"scale", rounded(image.f32(image.va(fence_scale)), 6)},
+                         {"growth", rounded(image.f32(image.va(fence_growth)), 6)},
                          {"depth", real(0.2)},
                          {"offset", real(-0.5)},
                          {"refraction", object({{"edge", real(1.0)},

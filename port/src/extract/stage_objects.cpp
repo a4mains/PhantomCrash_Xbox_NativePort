@@ -82,8 +82,8 @@ Json wreck_collision(const ModelMesh &mesh) {
 
 Json stage_object_records(const XbeImage &image, const int stage) {
   const auto index_of_stage = static_cast<std::uint32_t>(stage);
-  const std::uint32_t address = image.u32(object_records + index_of_stage * 4);
-  const std::uint32_t types = image.u32(object_types + index_of_stage * 4);
+  const std::uint32_t address = image.u32(image.va(object_records) + index_of_stage * 4);
+  const std::uint32_t types = image.u32(image.va(object_types) + index_of_stage * 4);
   const int limit = stage < city_stages ? max_objects : other_stage_objects;
   Json result = array();
   for (int index = 0; index < limit; ++index) {
@@ -103,7 +103,7 @@ Json stage_object_records(const XbeImage &image, const int stage) {
                          {"kind", integer(image.u32(types + static_cast<std::uint32_t>(template_index) * 4))},
                          {"gate", integer(image.i32(at + 48))}}));
   }
-  const std::uint32_t templates = image.u32(object_collision + index_of_stage * 4);
+  const std::uint32_t templates = image.u32(image.va(object_collision) + index_of_stage * 4);
   for (Json &entry : std::get<Json::Array>(result.value)) {
     const std::uint32_t first =
         templates + static_cast<std::uint32_t>(json_int(field(entry, "template"))) * collision_bytes;

@@ -65,7 +65,7 @@ Json name_text(const XbeImage &image, const std::uint32_t pointer) {
 }
 
 Json robot_json(const XbeImage &image, const int index) {
-  const std::uint32_t address = at(robots, index, robot_size);
+  const std::uint32_t address = at(image.va(robots), index, robot_size);
   const auto shorts = file_shorts(image, address, robot_name / 2);
   Json parts = object();
   for (std::size_t slot = 0; slot < robot_parts.size(); ++slot) {
@@ -91,7 +91,7 @@ Json robot_json(const XbeImage &image, const int index) {
 
 Json lineup_json(const XbeImage &image, const int index) {
   const auto words =
-      file_ints(image, at(lineups, index, lineup_size * 8), lineup_size * 2);
+      file_ints(image, at(image.va(lineups), index, lineup_size * 8), lineup_size * 2);
   Json out = array();
   for (std::size_t k = 0; k < lineup_size; ++k) {
     push(out, object({{"robot", integer(words[k * 2])}, {"picture", integer(words[k * 2 + 1])}}));
@@ -100,7 +100,8 @@ Json lineup_json(const XbeImage &image, const int index) {
 }
 
 Json shop_lineup(const XbeImage &image, const std::uint32_t table, const int index) {
-  const auto words = file_ints(image, at(table, index, shop_lineup_size), shop_lineup_items * 2);
+  const auto words =
+      file_ints(image, at(image.va(table), index, shop_lineup_size), shop_lineup_items * 2);
   Json out = array();
   for (std::size_t k = 0; k < shop_lineup_items; ++k) {
     if (words[k * 2] >= 0) {
@@ -111,7 +112,7 @@ Json shop_lineup(const XbeImage &image, const std::uint32_t table, const int ind
 }
 
 Json used_sv_lineup(const XbeImage &image, const int index) {
-  const auto words = file_ints(image, at(used_sv_lineups, index, used_sv_lineup_size),
+  const auto words = file_ints(image, at(image.va(used_sv_lineups), index, used_sv_lineup_size),
                                used_sv_lineup_items * 2);
   Json out = array();
   for (std::size_t k = 0; k < used_sv_lineup_items; ++k) {
@@ -123,7 +124,7 @@ Json used_sv_lineup(const XbeImage &image, const int index) {
 }
 
 Json module_json(const XbeImage &image, const int index) {
-  const std::uint32_t address = at(modules, index, module_size);
+  const std::uint32_t address = at(image.va(modules), index, module_size);
   const auto words = file_ints(image, address, module_size / 4);
   const auto rounded = [&](const std::uint32_t offset) {
     return real(python_round(image.f32(address + offset), 5));
@@ -144,9 +145,10 @@ Json module_json(const XbeImage &image, const int index) {
 }
 
 Json entries(const XbeImage &image, const std::uint32_t table, const int count) {
+  const std::uint32_t base = image.va(table);
   Json out = array();
   for (int index = 0; index < count; ++index) {
-    const auto words = file_ints(image, at(table, index, entry_size), 3);
+    const auto words = file_ints(image, at(base, index, entry_size), 3);
     push(out, object({{"name", name_text(image, static_cast<std::uint32_t>(words[0]))},
                       {"index", integer(words[1])},
                       {"price", integer(words[2])}}));

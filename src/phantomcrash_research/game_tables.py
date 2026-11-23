@@ -12,9 +12,10 @@ import hashlib
 import struct
 import unicodedata
 
-from . import xbe
+from . import xbe, xbe_profile
 
-EUROPE_XBE_SHA256 = "bdbe2c3eb2361395babfe6095d1a2da72f6581dccb34812b8d45e084c6c903c6"
+EUROPE_XBE_SHA256 = xbe_profile.EUROPE_PROFILE.sha256
+USA_XBE_SHA256 = "ee1caf6b0bde47abb104368657c44d078904684482ff60be5958e2201f5162d0"
 
 MUSIC_NAMES = 0x254480  # char *[], WAV names in Media\sound
 SCENE_MUSIC = 0x256230  # int32[SCENE_COUNT], index into MUSIC_NAMES or -1
@@ -94,9 +95,27 @@ class MusicCredit:
 
 
 class _Image:
-    def __init__(self, data: bytes):
+    def __init__(self, data: bytes, profile: xbe_profile.XbeProfile | None = None):
         self.data = data
         self.sections = xbe.parse(data).sections
+        self.profile = (
+            profile
+            or xbe_profile.match_profile(data)
+            or xbe_profile.EUROPE_PROFILE
+        )
+
+    def va(self, canonical_va: int) -> int:
+        return self.profile.table(canonical_va)
+
+    def text_va(self, canonical_va: int) -> int:
+        return self.profile.text(canonical_va)
+
+    def mapped(self, address: int, size: int = 1) -> bool:
+        return any(
+            section.virtual_address <= address
+            and address + size <= section.virtual_address + section.raw_size
+            for section in self.sections
+        )
 
     def offset(self, address: int, size: int = 4) -> int:
         for section in self.sections:
@@ -175,9 +194,10 @@ def sprite_binlink_packs(tables: GameTables) -> list[Resource]:
 
 
 def _resources(image: _Image) -> list[Resource]:
+    resources_va = image.va(RESOURCES)
     resources = []
     for index in range(RESOURCE_COUNT):
-        base = RESOURCES + index * 24
+        base = resources_va + index * 24
         path_address, size, kind, slots, pack, pack_offset = struct.unpack_from(
             "<6I", image.data, image.offset(base, 24)
         )
@@ -208,16 +228,17 @@ def _resources(image: _Image) -> list[Resource]:
 
 
 def _sprites(image: _Image) -> list[Sprite]:
+    sprites_va = image.va(SPRITES)
     sprites = []
     for index in range(SPRITE_COUNT):
-        definition, slot = struct.unpack_from("<2I", image.data, image.offset(SPRITES + index * 8, 8))
+        definition, slot = struct.unpack_from("<2I", image.data, image.offset(sprites_va + index * 8, 8))
         values = struct.unpack_from("<6f", image.data, image.offset(definition, 24))
         sprites.append(Sprite(index, slot, *values))
     return sprites
 
 
 def _font_characters(image: _Image) -> str:
-    raw = image.raw_string(image.u32(FONT_CHARACTERS))
+    raw = image.raw_string(image.u32(image.va(FONT_CHARACTERS)))
     # One pair (glyph 829, 0x83bd) is not valid Shift-JIS; U+FFFD keeps the
     # later glyphs at their index.
     pairs = (raw[index : index + 2] for index in range(0, len(raw) - 1, 2))
@@ -226,7 +247,7 @@ def _font_characters(image: _Image) -> str:
 
 def _font_metrics(image: _Image) -> list[tuple[int, int]]:
     count = FONT_METRICS_COUNT * 2
-    values = struct.unpack_from(f"<{count}b", image.data, image.offset(FONT_METRICS, count))
+    values = struct.unpack_from(f"<{count}b", image.data, image.offset(image.va(FONT_METRICS), count))
     return [(values[index], values[index + 1] & 0xFF) for index in range(0, count, 2)]
 
 
@@ -236,9 +257,10 @@ def _plain(raw: bytes) -> str:
 
 
 def _music_credits(image: _Image) -> list[MusicCredit]:
+    credits_va = image.va(MUSIC_CREDITS)
     credits = []
     for index in range(MUSIC_CREDIT_COUNT):
-        base = MUSIC_CREDITS + index * 0x1AC
+        base = credits_va + index * 0x1AC
         track = struct.unpack_from("<i", image.data, image.offset(base))[0]
         if track >= 0:
             title, artist = image.raw_string(base + 4), image.raw_string(base + 0x69)
@@ -258,20 +280,22 @@ def _string_table(image: _Image, address: int, stride: int = 4, limit: int = 409
 
 
 def load(data: bytes) -> GameTables:
-    if hashlib.sha256(data).hexdigest() != EUROPE_XBE_SHA256:
-        raise GameTablesError("Not the European default.xbe these table addresses describe")
-    image = _Image(data)
+    profile = xbe_profile.match_profile(data)
+    if profile is None:
+        raise GameTablesError("Unsupported default.xbe; expected European (PAL) or USA (NTSC-U) retail build")
+    image = _Image(data, profile=profile)
     scene_music = list(
-        struct.unpack_from(f"<{SCENE_COUNT}i", data, image.offset(SCENE_MUSIC, SCENE_COUNT * 4))
+        struct.unpack_from(f"<{SCENE_COUNT}i", data, image.offset(image.va(SCENE_MUSIC), SCENE_COUNT * 4))
     )
-    movies = [_media_relative(image.string(image.u32(MOVIES + 4 * i))) for i in range(MOVIE_COUNT)]
+    movies_va = image.va(MOVIES)
+    movies = [_media_relative(image.string(image.u32(movies_va + 4 * i))) for i in range(MOVIE_COUNT)]
     packs = [
         _media_relative(path)
-        for path in _string_table(image, BINLINK_PACKS, stride=8)
+        for path in _string_table(image, image.va(BINLINK_PACKS), stride=8)
         if path.lower().startswith("d:\\")
     ]
     return GameTables(
-        music=_string_table(image, MUSIC_NAMES),
+        music=_string_table(image, image.va(MUSIC_NAMES)),
         scene_music=scene_music,
         movies=movies,
         binlink_packs=packs,
@@ -281,6 +305,6 @@ def load(data: bytes) -> GameTables:
         font_metrics=_font_metrics(image),
         music_credits=_music_credits(image),
         volume_millibels=list(
-            struct.unpack_from("<256h", data, image.offset(VOLUME_MILLIBELS, 512))
+            struct.unpack_from("<256h", data, image.offset(image.va(VOLUME_MILLIBELS), 512))
         ),
     )

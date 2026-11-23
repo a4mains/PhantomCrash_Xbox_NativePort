@@ -56,12 +56,13 @@ def chatter(data: bytes, tables: GameTables) -> dict:
     image = _Image(data)
     gates = list(
         struct.unpack_from(
-            f"<{CHATTER_EVENTS}h", image.data, image.offset(CHATTER_GATES, 2 * CHATTER_EVENTS)
+            f"<{CHATTER_EVENTS}h", image.data, image.offset(image.va(CHATTER_GATES), 2 * CHATTER_EVENTS)
         )
     )
     chances = {
-        kind: _floats(image, address, CHATTER_EVENTS) for kind, address in CHATTER_CHANCES.items()
+        kind: _floats(image, image.va(address), CHATTER_EVENTS) for kind, address in CHATTER_CHANCES.items()
     }
+    chatter_tables_va = image.va(CHATTER_TABLES)
     scripts: list[list[dict]] = []
     by_address: dict[int, int] = {}
     by_content: dict[str, int] = {}
@@ -69,7 +70,7 @@ def chatter(data: bytes, tables: GameTables) -> dict:
     for table in range(CHATTER_TABLE_COUNT):
         entries: list[int | None] = []
         for event in range(CHATTER_EVENTS):
-            address = image.u32(CHATTER_TABLES + (table * CHATTER_EVENTS + event) * 4)
+            address = image.u32(chatter_tables_va + (table * CHATTER_EVENTS + event) * 4)
             if not address:
                 entries.append(None)
                 continue

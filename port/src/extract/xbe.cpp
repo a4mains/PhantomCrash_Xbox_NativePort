@@ -1,5 +1,6 @@
 #include "xbe.hpp"
 
+#include "sha256.hpp"
 #include "text.hpp"
 
 #include <array>
@@ -175,7 +176,12 @@ Xbe parse_xbe(ByteView data) {
   return out;
 }
 
-XbeImage::XbeImage(ByteView data) : data_(data), sections_(parse_xbe(data).sections) {}
+XbeImage::XbeImage(ByteView data)
+    : data_(data), sections_(parse_xbe(data).sections),
+      profile_(match_xbe_profile(sha256_hex(data)).value_or(europe_profile())) {}
+
+XbeImage::XbeImage(ByteView data, XbeProfile profile)
+    : data_(data), sections_(parse_xbe(data).sections), profile_(std::move(profile)) {}
 
 bool XbeImage::mapped(const std::uint32_t address, const std::size_t size) const {
   for (const auto &s : sections_) {

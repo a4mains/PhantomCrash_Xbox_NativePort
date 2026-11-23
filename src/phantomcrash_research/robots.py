@@ -77,6 +77,9 @@ class _Reader:
         self.image = game_tables._Image(data)
         self.data = data
 
+    def va(self, canonical_va: int) -> int:
+        return self.image.va(canonical_va)
+
     def u32(self, address: int) -> int:
         return self.image.u32(address)
 
@@ -128,6 +131,7 @@ def _node(reader: _Reader, address: int, depth: int) -> dict:
 
 
 def _skeletons(reader: _Reader, table: int, count: int) -> list[dict | None]:
+    table = reader.va(table)
     trees: list[dict | None] = []
     for index in range(count):
         root = reader.u32(table + 4 * index)
@@ -137,22 +141,24 @@ def _skeletons(reader: _Reader, table: int, count: int) -> list[dict | None]:
 
 def _part_types(reader: _Reader, table: tuple[int, int, int], byte: bool = False) -> list[int]:
     base, size, count = table
+    base = reader.va(base)
     if byte:
         return [reader.u32(base + size * i + 4) & 0xFF for i in range(count)]
     return [reader.s32(base + size * i + 8) for i in range(count)]
 
 
 def _paints(reader: _Reader) -> list[list[int]]:
+    paints_va = reader.va(PAINTS)
     paints = []
     for leg_type in range(LEG_TYPES):
-        textures = reader.u32(PAINTS + 8 * leg_type)
+        textures = reader.u32(paints_va + 8 * leg_type)
         paints.append(reader.words(textures, PAINTS_PER_LEG_TYPE) if textures else [])
     return paints
 
 
 def _timings(reader: _Reader, leg_type: int) -> list[list[float]]:
     """Per motion: first frame, loop start, loop end and last frame."""
-    base = MOTION_TIMINGS + leg_type * MOTIONS_PER_BANK * 16
+    base = reader.va(MOTION_TIMINGS) + leg_type * MOTIONS_PER_BANK * 16
     return [
         [_round(reader.f32(base + 16 * motion + 4 * i)) for i in range(4)]
         for motion in range(MOTIONS_PER_BANK)
@@ -162,6 +168,18 @@ def _timings(reader: _Reader, leg_type: int) -> list[list[float]]:
 def catalogue(data: bytes) -> dict:
     """Every part's type and every type's models, skeletons, motions and paints."""
     reader = _Reader(data)
+    body_models_va = reader.va(BODY_MODELS)
+    body_emblem_models_va = reader.va(BODY_EMBLEM_MODELS)
+    body_motions_va = reader.va(BODY_MOTIONS)
+    forearm_turn_va = reader.va(FOREARM_TURN)
+    leg_models_va = reader.va(LEG_MODELS)
+    leg_motions_va = reader.va(LEG_MOTIONS)
+    leg_radii_va = reader.va(LEG_RADII)
+    leg_shadows_va = reader.va(LEG_SHADOWS)
+    arm_models_vas = [reader.va(table) for table in ARM_MODELS]
+    arm_classes_va = reader.va(ARM_CLASSES)
+    arm_motions_vas = [reader.va(table) for table in ARM_MOTIONS]
+    shoulder_models_vas = [reader.va(table) for table in SHOULDER_MODELS]
     return {
         "parts": {
             "body": _part_types(reader, BODY_PARTS, byte=True),
@@ -171,37 +189,37 @@ def catalogue(data: bytes) -> dict:
         },
         "body_types": [
             {
-                "model": reader.u32(BODY_MODELS + 4 * t),
-                "emblem_model": reader.u32(BODY_EMBLEM_MODELS + 4 * t),
-                "motions": reader.u32(BODY_MOTIONS + 4 * t),
-                "forearm_turn": -_round(reader.f32(FOREARM_TURN)) if t == FOREARM_TURN_BODY_TYPE else 0.0,
+                "model": reader.u32(body_models_va + 4 * t),
+                "emblem_model": reader.u32(body_emblem_models_va + 4 * t),
+                "motions": reader.u32(body_motions_va + 4 * t),
+                "forearm_turn": -_round(reader.f32(forearm_turn_va)) if t == FOREARM_TURN_BODY_TYPE else 0.0,
             }
             for t in range(BODY_TYPES)
         ],
         "leg_types": [
             {
-                "model": reader.u32(LEG_MODELS + 4 * t),
-                "motions": reader.u32(LEG_MOTIONS + 4 * t),
-                "arm_motions": [reader.words(table + 8 * t, 2) for table in ARM_MOTIONS],
+                "model": reader.u32(leg_models_va + 4 * t),
+                "motions": reader.u32(leg_motions_va + 4 * t),
+                "arm_motions": [reader.words(table + 8 * t, 2) for table in arm_motions_vas],
                 "paints": paints,
                 "timings": _timings(reader, t),
-                "radius": _round(reader.f32(LEG_RADII + 8 * t + 4)),
-                "shadow_mesh": reader.u32(LEG_SHADOWS + 4 * t),
+                "radius": _round(reader.f32(leg_radii_va + 8 * t + 4)),
+                "shadow_mesh": reader.u32(leg_shadows_va + 4 * t),
             }
             for t, paints in enumerate(_paints(reader))
         ],
         "arm_types": [
             {
-                "models": [reader.u32(table + 4 * t) for table in ARM_MODELS],
-                "class": reader.u32(ARM_CLASSES + 4 * t),
+                "models": [reader.u32(table + 4 * t) for table in arm_models_vas],
+                "class": reader.u32(arm_classes_va + 4 * t),
             }
             for t in range(ARM_TYPES)
         ],
         "shoulder_types": [
-            {"models": [reader.u32(table + 4 * t) for table in SHOULDER_MODELS]}
+            {"models": [reader.u32(table + 4 * t) for table in shoulder_models_vas]}
             for t in range(SHOULDER_TYPES)
         ],
-        "emblems": reader.words(EMBLEM_TEXTURES, EMBLEMS),
+        "emblems": reader.words(reader.va(EMBLEM_TEXTURES), EMBLEMS),
     }
 
 
