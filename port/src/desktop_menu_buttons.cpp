@@ -1,14 +1,19 @@
 #include "desktop_menu_buttons.hpp"
 #include "phantomcrash/json_fields.hpp"
 #include "phantomcrash/sprite_layer.hpp"
-#include <windows.h>
-#include <gdiplus.h>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <stdexcept>
+#ifdef _WIN32
+#include <windows.h>
+#include <gdiplus.h>
+#endif
 
 namespace phantomcrash {
+#ifdef _WIN32
 namespace {
 using namespace Gdiplus;
 
@@ -224,4 +229,78 @@ void MenuButtons::draw(const std::string &label, const std::array<float, 2> &pos
     SDL_RenderTexture(p.renderer, lit, nullptr, &target);
   }
 }
+#else
+namespace {
+
+SDL_Color rgba_colour(const json::JsonValue &data, const char *key,
+                      const std::optional<std::string> &fallback = std::nullopt) {
+  const std::uint32_t hex =
+      fallback ? parse_colour(data.string_or(key, *fallback))
+               : parse_colour(json::required(data, key).string());
+  return SDL_Color{static_cast<Uint8>((hex >> 16) & 0xFF), static_cast<Uint8>((hex >> 8) & 0xFF),
+                   static_cast<Uint8>(hex & 0xFF), 255};
+}
+
+} // namespace
+
+struct MenuButtons::Impl {
+  SDL_Renderer *renderer;
+  std::array<float, 2> size, offset, text_offset;
+  float padding;
+  SDL_Color background, outline, ink, selected_background, selected_outline, selected_ink,
+      disabled_outline, disabled_ink;
+
+  Impl(SDL_Renderer *r, const json::JsonValue &data) : renderer(r) {
+    size = json::numbers<2>(json::required(data, "size"), "size");
+    offset = json::numbers<2>(json::required(data, "offset"), "offset");
+    text_offset = json::numbers<2>(json::required(data, "text_offset"), "text_offset");
+    padding = static_cast<float>(data.number_or("padding", 4));
+    if (size[0] <= 0 || size[1] <= 0) {
+      throw std::runtime_error("Invalid native menu button dimensions");
+    }
+    background = rgba_colour(data, "background");
+    outline = rgba_colour(data, "outline");
+    ink = rgba_colour(data, "text");
+    selected_background = rgba_colour(data, "selected_background", "#e8bd00");
+    selected_outline = rgba_colour(data, "selected_outline");
+    selected_ink = rgba_colour(data, "selected_text");
+    disabled_outline = rgba_colour(data, "disabled_outline");
+    disabled_ink = rgba_colour(data, "disabled_text");
+  }
+};
+
+MenuButtons::MenuButtons(SDL_Renderer *renderer, const json::JsonValue &style)
+    : impl_(std::make_unique<Impl>(renderer, style)) {}
+MenuButtons::~MenuButtons() = default;
+
+bool MenuButtons::contains(const std::array<float, 2> &position,
+                           const std::array<float, 2> &point) const {
+  const float left = position[0] + impl_->offset[0];
+  const float top = position[1] + impl_->offset[1];
+  return point[0] >= left && point[0] < left + impl_->size[0] && point[1] >= top &&
+         point[1] < top + impl_->size[1];
+}
+
+void MenuButtons::draw(const std::string &label, const std::array<float, 2> &position,
+                       const Viewport &viewport, const bool selected, const bool available,
+                       const float selection_alpha) {
+  const auto &p = *impl_;
+  const SDL_FRect box{viewport.to_pixel_x(position[0] + p.offset[0]),
+                      viewport.to_pixel_y(position[1] + p.offset[1]),
+                      p.size[0] * viewport.scale, p.size[1] * viewport.scale};
+  const SDL_Color fill = (selected && available) ? p.selected_background : p.background;
+  const SDL_Color edge = !available ? p.disabled_outline : selected ? p.selected_outline : p.outline;
+  const SDL_Color text = !available ? p.disabled_ink : selected ? p.selected_ink : p.ink;
+  const Uint8 alpha = (selected && available) ? static_cast<Uint8>(std::clamp(selection_alpha, 0.25F, 1.0F) * 255.0F) : 255;
+  SDL_SetRenderDrawBlendMode(p.renderer, SDL_BLENDMODE_BLEND);
+  SDL_SetRenderDrawColor(p.renderer, fill.r, fill.g, fill.b, alpha);
+  SDL_RenderFillRect(p.renderer, &box);
+  SDL_SetRenderDrawColor(p.renderer, edge.r, edge.g, edge.b, 255);
+  SDL_RenderRect(p.renderer, &box);
+  SDL_SetRenderDrawColor(p.renderer, text.r, text.g, text.b, 255);
+  const float tx = box.x + std::max(4.0F, (box.w - static_cast<float>(label.size()) * 8.0F) * 0.5F);
+  const float ty = box.y + std::max(2.0F, (box.h - 8.0F) * 0.5F);
+  SDL_RenderDebugText(p.renderer, tx, ty, label.c_str());
+}
+#endif
 } // namespace phantomcrash

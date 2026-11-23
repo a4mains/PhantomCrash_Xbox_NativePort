@@ -1,10 +1,14 @@
 #pragma once
 
+#ifdef _WIN32
 #include "desktop_world_gpu.hpp"
+#endif
 #include "phantomcrash/data_roots.hpp"
 #include "phantomcrash/math3d.hpp"
 
+#ifdef _WIN32
 #include <d3d11_1.h>
+#endif
 
 // Sun shadows (a port addition): one orthographic depth map seen from the
 // stage's sun covers the ground around the camera, and the world shader takes
@@ -37,6 +41,7 @@ struct SunShadowTuning {
 
 [[nodiscard]] SunShadowTuning load_sun_shadow_tuning(const DataRoots &roots);
 
+#ifdef _WIN32
 class SunShadows final {
 public:
   SunShadows(ID3D11Device *device, const SunShadowTuning &tuning);
@@ -64,5 +69,6 @@ private:
   Com<ID3D11DepthStencilState> depth_state_;
   Com<ID3D11SamplerState> comparison_;
 };
+#endif
 
 } // namespace phantomcrash

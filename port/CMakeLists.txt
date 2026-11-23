@@ -319,7 +319,23 @@ add_library(phantomcrash_core
 )
 
 # cgltf (header only) reads the converted glTF models.
-find_path(CGLTF_INCLUDE_DIRS cgltf.h REQUIRED)
+find_path(CGLTF_INCLUDE_DIRS cgltf.h)
+if(NOT CGLTF_INCLUDE_DIRS)
+  include(FetchContent)
+  if(POLICY CMP0169)
+    cmake_policy(SET CMP0169 OLD)
+  endif()
+  FetchContent_Declare(cgltf
+    GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
+    GIT_TAG v1.15
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_GetProperties(cgltf)
+  if(NOT cgltf_POPULATED)
+    FetchContent_Populate(cgltf)
+  endif()
+  set(CGLTF_INCLUDE_DIRS "${cgltf_SOURCE_DIR}")
+endif()
 
 target_include_directories(phantomcrash_core
   PUBLIC
@@ -510,11 +526,51 @@ if(MSVC)
 endif()
 
 if(PHANTOMCRASH_BUILD_DESKTOP)
-  find_package(SDL3 CONFIG REQUIRED)
-  find_package(SDL3_image CONFIG REQUIRED)
-  find_package(ZLIB REQUIRED)
-  find_package(libdeflate CONFIG REQUIRED)
   find_package(PkgConfig REQUIRED)
+  find_package(SDL3 CONFIG QUIET)
+  if(NOT SDL3_FOUND)
+    include(FetchContent)
+    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    set(SDL_EXAMPLES OFF CACHE BOOL "" FORCE)
+    if(UNIX AND NOT APPLE)
+      set(SDL_X11_XSCRNSAVER OFF CACHE BOOL "" FORCE)
+    endif()
+    FetchContent_Declare(SDL3
+      GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+      GIT_TAG release-3.4.20
+      GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(SDL3)
+  endif()
+  find_package(SDL3_image CONFIG QUIET)
+  if(NOT SDL3_image_FOUND)
+    include(FetchContent)
+    set(SDLIMAGE_VENDORED OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_DEPS_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_AVIF OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_JXL OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_TIF OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_WEBP OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_TESTS OFF CACHE BOOL "" FORCE)
+    set(SDLIMAGE_SAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(SDL3_image
+      GIT_REPOSITORY https://github.com/libsdl-org/SDL_image.git
+      GIT_TAG release-3.4.8
+      GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(SDL3_image)
+  endif()
+  find_package(ZLIB REQUIRED)
+  find_package(libdeflate CONFIG QUIET)
+  if(TARGET libdeflate::libdeflate_shared)
+    set(PHANTOMCRASH_DEFLATE_TARGET libdeflate::libdeflate_shared)
+  elseif(TARGET libdeflate::libdeflate_static)
+    set(PHANTOMCRASH_DEFLATE_TARGET libdeflate::libdeflate_static)
+  else()
+    pkg_check_modules(LIBDEFLATE REQUIRED IMPORTED_TARGET libdeflate)
+    set(PHANTOMCRASH_DEFLATE_TARGET PkgConfig::LIBDEFLATE)
+  endif()
   pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
     libavcodec
     libavformat
@@ -586,7 +642,7 @@ if(PHANTOMCRASH_BUILD_DESKTOP)
   )
   target_include_directories(phantomcrash_extractor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/extract)
   target_link_libraries(phantomcrash_extractor PUBLIC phantomcrash_core ZLIB::ZLIB
-                        libdeflate::libdeflate_shared)
+                        ${PHANTOMCRASH_DEFLATE_TARGET})
   if(WIN32)
     target_link_libraries(phantomcrash_extractor PUBLIC Normaliz)
   endif()
@@ -610,7 +666,7 @@ if(PHANTOMCRASH_BUILD_DESKTOP)
     add_test(NAME phantomcrash_extract_tests COMMAND phantomcrash_extract_tests)
   endif()
 
-  add_executable(phantomcrash_port WIN32
+  add_executable(phantomcrash_port
     src/desktop_audio.cpp
     src/desktop_audio_effects.cpp
     src/desktop_source_audio.cpp
@@ -805,49 +861,57 @@ if(PHANTOMCRASH_BUILD_DESKTOP)
     src/desktop_foot_effects.cpp
     src/desktop_shot_residue.cpp
     src/desktop_training_robots.cpp
-    src/desktop_world_gpu.cpp
-    src/desktop_world_passes.cpp
-    src/desktop_world_monitor.cpp
     src/desktop_dynamic_lights.cpp
     src/desktop_online_diagnostics.cpp
     src/desktop_sun_shadows.cpp
     src/desktop_volumetric_lights.cpp
     src/desktop_light_sources.cpp
     src/desktop_point_lights.cpp
-    src/desktop_world_lights.cpp
     src/desktop_visuals_dialog.cpp
     src/desktop_coop_dialog.cpp
     src/desktop_coop_rewards.cpp
-    src/desktop_world_shadows.cpp
-    src/desktop_world_screen.cpp
     src/desktop_pause_menu.cpp
     src/desktop_pause_roster.cpp
     src/desktop_sharp_text.cpp
-    src/desktop_smaa.cpp
-    src/desktop_world_sprites.cpp
     src/desktop_sprite_vertices.cpp
-    src/desktop_world_renderer.cpp
-    src/desktop_world_shaders.cpp
     src/movie_audio_output.cpp
     src/movie_player.cpp
   )
-  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/smaa/SMAA.hlsl")
-  file(READ "${CMAKE_CURRENT_SOURCE_DIR}/third_party/smaa/SMAA.hlsl" SMAA_SOURCE)
-  # Keep each literal below MSVC's per-token limit without editing upstream HLSL.
-  string(REPLACE "\n" "\n)smaa\"\nR\"smaa(" SMAA_SOURCE "${SMAA_SOURCE}")
-  configure_file(src/desktop_smaa_shaders.hpp.in generated/desktop_smaa_shaders.hpp @ONLY)
-  target_include_directories(phantomcrash_port PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
   target_link_libraries(phantomcrash_port PRIVATE
     phantomcrash_online phantomcrash_media SDL3::SDL3 SDL3_image::SDL3_image ZLIB::ZLIB)
   # The port runs the extractor beside it to install or update the game data.
   add_dependencies(phantomcrash_port phantomcrash_extract)
   if(WIN32)
+    target_sources(phantomcrash_port PRIVATE
+      src/desktop_world_gpu.cpp
+      src/desktop_world_passes.cpp
+      src/desktop_world_monitor.cpp
+      src/desktop_world_lights.cpp
+      src/desktop_world_shadows.cpp
+      src/desktop_world_screen.cpp
+      src/desktop_smaa.cpp
+      src/desktop_world_sprites.cpp
+      src/desktop_world_renderer.cpp
+      src/desktop_world_shaders.cpp
+    )
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/smaa/SMAA.hlsl")
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/third_party/smaa/SMAA.hlsl" SMAA_SOURCE)
+    # Keep each literal below MSVC's per-token limit without editing upstream HLSL.
+    string(REPLACE "\n" "\n)smaa\"\nR\"smaa(" SMAA_SOURCE "${SMAA_SOURCE}")
+    configure_file(src/desktop_smaa_shaders.hpp.in generated/desktop_smaa_shaders.hpp @ONLY)
+    target_include_directories(phantomcrash_port PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    set_target_properties(phantomcrash_port PROPERTIES WIN32_EXECUTABLE TRUE)
     target_link_libraries(phantomcrash_port PRIVATE comctl32 d3d11 dxgi d3dcompiler gdiplus)
 
     # The executable icon (port/res, built by tools/make_icon.py).
     enable_language(RC)
     target_sources(phantomcrash_port PRIVATE res/phantomcrash_port.rc)
+  else()
+    target_sources(phantomcrash_port PRIVATE
+      src/desktop_world_gpu_sdl.cpp
+      src/desktop_world_renderer_gpu.cpp
+    )
   endif()
   if(MSVC)
     target_compile_options(phantomcrash_port PRIVATE /W4 /permissive-)

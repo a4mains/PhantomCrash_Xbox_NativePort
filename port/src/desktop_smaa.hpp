@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #include "desktop_world_gpu.hpp"
 
 #include <array>
@@ -41,3 +42,4 @@ private:
 };
 
 } // namespace phantomcrash
+#endif

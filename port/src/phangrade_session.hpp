@@ -284,4 +284,13 @@ public:
   Session &operator=(const Session &) = delete;
 };
 } // namespace phangrade
+#else
+namespace phangrade {
+class Session {
+public:
+  bool active() const { return false; }
+  template <class... Args> void attach(Args &&...) {}
+  void tick() {}
+};
+} // namespace phangrade
 #endif

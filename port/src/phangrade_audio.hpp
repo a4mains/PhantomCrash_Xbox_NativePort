@@ -1,5 +1,6 @@
 #pragma once
 // Copied into each port: only active when launched with PHANGRADE_SETTINGS.
+#ifdef _WIN32
 #include <windows.h>
 #include <mmdeviceapi.h>
 #include <audiopolicy.h>
@@ -87,3 +88,4 @@ public:
   }
 };
 } // namespace phangrade
+#endif

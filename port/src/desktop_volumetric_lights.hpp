@@ -1,7 +1,9 @@
 #pragma once
 
 #include "desktop_dynamic_lights.hpp"
+#ifdef _WIN32
 #include "desktop_world_gpu.hpp"
+#endif
 #include "phantomcrash/data_roots.hpp"
 #include "phantomcrash/math3d.hpp"
 
@@ -28,6 +30,7 @@ struct VolumetricAir {
 // The stage's air, or clear air when it has none.
 [[nodiscard]] VolumetricAir load_volumetric_air(const DataRoots &roots, int stage);
 
+#ifdef _WIN32
 class VolumetricLightPass final {
 public:
   explicit VolumetricLightPass(ID3D11Device *device);
@@ -57,5 +60,6 @@ private:
   Com<ID3D11ShaderResourceView> scattered_view_;
   int width_{}, height_{};
 };
+#endif
 
 } // namespace phantomcrash

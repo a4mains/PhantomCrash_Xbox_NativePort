@@ -1,6 +1,10 @@
 #pragma once
 
+#ifdef _WIN32
 #include "desktop_world_gpu.hpp"
+#else
+#include "phantomcrash/math3d.hpp"
+#endif
 #include <array>
 #include <span>
 
@@ -43,6 +47,7 @@ class DynamicLightPass final {
 public:
   static constexpr unsigned capacity = 8;
   static constexpr unsigned point_capacity = 32;
+#ifdef _WIN32
   explicit DynamicLightPass(ID3D11Device *device);
   // Returns the spotlights kept, whose shadow maps are drawn next.
   unsigned prepare(ID3D11DeviceContext *context, std::span<const WorldLight> spots,
@@ -66,5 +71,6 @@ private:
   Com<ID3D11RasterizerState> raster_;
   Com<ID3D11DepthStencilState> depth_state_;
   Com<ID3D11SamplerState> comparison_;
+#endif
 };
 } // namespace phantomcrash

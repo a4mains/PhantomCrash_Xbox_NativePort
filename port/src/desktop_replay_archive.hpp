@@ -65,6 +65,9 @@ public:
 private:
   void write_frames();
 
+#ifndef _WIN32
+  std::string temp_path_;
+#endif
   std::FILE *file_{};
   std::vector<double> times_;
   std::vector<SoundCue> sounds_;

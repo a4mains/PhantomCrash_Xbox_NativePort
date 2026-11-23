@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #include <d3d11.h>
 #include <wrl/client.h>
 
@@ -33,3 +34,4 @@ struct ShadowShaders {
 compile_world_hlsl(std::string_view source, const char *entry, const char *target);
 
 } // namespace phantomcrash
+#endif

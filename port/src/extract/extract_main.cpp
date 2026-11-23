@@ -9,10 +9,14 @@
 #include "xbe.hpp"
 #include "xdvdfs.hpp"
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -61,9 +65,27 @@ struct Arguments {
 };
 
 std::filesystem::path executable_directory() {
+#ifdef _WIN32
   wchar_t buffer[MAX_PATH]{};
   GetModuleFileNameW(nullptr, buffer, MAX_PATH);
   return std::filesystem::path(buffer).parent_path();
+#elif defined(__APPLE__)
+  std::uint32_t size = 0;
+  _NSGetExecutablePath(nullptr, &size);
+  std::vector<char> buffer(size + 1, '\0');
+  if (_NSGetExecutablePath(buffer.data(), &size) == 0) {
+    std::error_code ec;
+    const auto resolved = std::filesystem::weakly_canonical(buffer.data(), ec);
+    if (!ec) {
+      return resolved.parent_path();
+    }
+  }
+  return std::filesystem::current_path();
+#else
+  std::error_code ec;
+  const auto resolved = std::filesystem::canonical("/proc/self/exe", ec);
+  return ec ? std::filesystem::current_path() : resolved.parent_path();
+#endif
 }
 
 // The folder holding data/, searched from the EXE's folder first so a
@@ -75,6 +97,7 @@ std::filesystem::path repository_root() {
   return DataRoots::find_root(starts).value_or(std::filesystem::current_path());
 }
 
+#ifdef _WIN32
 // The arguments as UTF-8, so paths outside the ANSI code page survive.
 std::vector<std::string> utf8_arguments(int argc, wchar_t **argv) {
   std::vector<std::string> out;
@@ -87,6 +110,7 @@ std::vector<std::string> utf8_arguments(int argc, wchar_t **argv) {
   }
   return out;
 }
+#endif
 
 std::optional<Arguments> parse(const std::vector<std::string> &argv) {
   if (argv.size() < 2) {
@@ -271,9 +295,19 @@ int run(const Arguments &arguments) {
 
 } // namespace
 
+#ifdef _WIN32
 int wmain(int argc, wchar_t **argv) {
   SetConsoleOutputCP(CP_UTF8);
   const auto arguments = parse(utf8_arguments(argc, argv));
+#else
+int main(int argc, char **argv) {
+  std::vector<std::string> raw;
+  raw.reserve(static_cast<std::size_t>(argc));
+  for (int i = 0; i < argc; ++i) {
+    raw.emplace_back(argv[i]);
+  }
+  const auto arguments = parse(raw);
+#endif
   if (!arguments) {
     std::cerr << usage;
     return 2;

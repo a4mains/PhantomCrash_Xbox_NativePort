@@ -1,7 +1,9 @@
 #pragma once
 
 #include "phantomcrash/math3d.hpp"
+#ifdef _WIN32
 #include <d3d11.h>
+#endif
 #include <array>
 #include <cstring>
 
@@ -49,6 +51,7 @@ struct DrawConstants {
 };
 static_assert(sizeof(DrawConstants) == 320);
 
+#ifdef _WIN32
 template <typename T>
 void upload(ID3D11DeviceContext *context, ID3D11Buffer *buffer, const T &data) {
   D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -57,5 +60,6 @@ void upload(ID3D11DeviceContext *context, ID3D11Buffer *buffer, const T &data) {
     context->Unmap(buffer, 0);
   }
 }
+#endif
 
 } // namespace phantomcrash::world_constants

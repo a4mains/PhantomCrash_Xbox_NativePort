@@ -1,7 +1,9 @@
 #include "desktop_sun_shadows.hpp"
 
+#ifdef _WIN32
 #include "desktop_world_renderer.hpp"
 #include "desktop_world_shaders.hpp"
+#endif
 #include "phantomcrash/json_fields.hpp"
 
 #include <SDL3/SDL.h>
@@ -14,6 +16,7 @@
 
 namespace phantomcrash {
 namespace {
+#ifdef _WIN32
 
 struct CasterConstants {
   Mat4 transform;
@@ -79,6 +82,7 @@ Mat4 orthographic(const float width, const float height, const float near_plane,
   out.at(3, 2) = -near_plane / (far_plane - near_plane);
   return out;
 }
+#endif
 
 float number(const json::JsonValue &value, const char *key, const float fallback) {
   const float out = static_cast<float>(value.number_or(key, fallback));
@@ -113,6 +117,7 @@ SunShadowTuning load_sun_shadow_tuning(const DataRoots &roots) {
   return t;
 }
 
+#ifdef _WIN32
 SunShadows::SunShadows(ID3D11Device *device, const SunShadowTuning &tuning) : tuning_(tuning) {
   caster_constants_ = constant_buffer(device, sizeof(CasterConstants));
   sun_constants_ = constant_buffer(device, sizeof(SunConstants));
@@ -279,5 +284,6 @@ void WorldRenderer::render_sun_shadows(const WorldFrame &frame) {
     SDL_Log("Sun shadows disabled after failure, the stencil shadows are drawn: %s", error.what());
   }
 }
+#endif
 
 } // namespace phantomcrash

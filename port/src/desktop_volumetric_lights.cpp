@@ -1,7 +1,9 @@
 #include "desktop_volumetric_lights.hpp"
+#ifdef _WIN32
 #include "desktop_dynamic_light_shader.hpp"
 #include "desktop_volumetric_light_shader.hpp"
 #include "desktop_world_shaders.hpp"
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -10,6 +12,7 @@
 #include <string>
 
 namespace phantomcrash {
+#ifdef _WIN32
 namespace {
 
 struct AirConstants {
@@ -28,6 +31,7 @@ struct AirConstants {
 static_assert(sizeof(AirConstants) % 16 == 0);
 
 } // namespace
+#endif
 
 VolumetricAir load_volumetric_air(const DataRoots &roots, const int stage) {
   VolumetricAir air;
@@ -67,6 +71,7 @@ VolumetricAir load_volumetric_air(const DataRoots &roots, const int stage) {
   return air;
 }
 
+#ifdef _WIN32
 VolumetricLightPass::VolumetricLightPass(ID3D11Device *device) : device_(device) {
   const std::string single = std::string(dynamic_light_hlsl) + volumetric_shader::source;
   const std::string multisampled = "#define MULTISAMPLED\n" + single;
@@ -201,5 +206,6 @@ void VolumetricLightPass::apply(ID3D11DeviceContext *context, const Target &targ
   ID3D11ShaderResourceView *none[2] = {};
   context->PSSetShaderResources(0, 2, none);
 }
+#endif
 
 } // namespace phantomcrash
