@@ -156,13 +156,13 @@ def _face(image: _Image, tables: GameTables, name_id: int) -> dict | None:
     """A name entry's face sprite, or None."""
     if not 0 <= name_id < NAME_COUNT:
         return None
-    entry = NAMES + name_id * NAME_SIZE
+    entry = image.va(NAMES) + name_id * NAME_SIZE
     (sprite,) = struct.unpack_from("<h", image.data, image.offset(entry + NAME_FACE))
     return events.sprite_json(tables, sprite) if sprite >= 0 else None
 
 
 def chip(image: _Image, index: int, tables: GameTables) -> dict:
-    record = CHIPS + index * CHIP_SIZE
+    record = image.va(CHIPS) + index * CHIP_SIZE
     return {
         "index": index,
         "name": _name(image, record),
@@ -187,7 +187,7 @@ def chip(image: _Image, index: int, tables: GameTables) -> dict:
 
 
 def weapon(image: _Image, table: int, index: int) -> dict:
-    record = table + index * WEAPON_SIZE
+    record = image.va(table) + index * WEAPON_SIZE
     return {
         "index": index,
         "name": _name(image, record),
@@ -235,7 +235,7 @@ def weapon(image: _Image, table: int, index: int) -> dict:
 
 
 def body(image: _Image, index: int) -> dict:
-    record = BODIES + index * BODY_SIZE
+    record = image.va(BODIES) + index * BODY_SIZE
     kind = _byte(image, record + 4)
     player_floor = PLAYER_BODY_FLOORS[kind] if kind < len(PLAYER_BODY_FLOORS) else FLOOR_DEFAULT
     return {
@@ -251,7 +251,7 @@ def body(image: _Image, index: int) -> dict:
 
 
 def legs(image: _Image, index: int) -> dict:
-    record = LEGS + index * LEGS_SIZE
+    record = image.va(LEGS) + index * LEGS_SIZE
     model = struct.unpack_from("<i", image.data, image.offset(record + 8))[0]
     if 0 <= model < COMPUTER_LEGS_MODELS:
         computer_floor = COMPUTER_LEGS_FLOORS.get(model, COMPUTER_LEGS_FLOOR)
@@ -282,7 +282,7 @@ def legs(image: _Image, index: int) -> dict:
 def _entry_name(image: _Image, name_id: int, field: int) -> str | None:
     if not 0 <= name_id < NAME_COUNT:
         return None
-    pointer = image.u32(NAMES + name_id * NAME_SIZE + field)
+    pointer = image.u32(image.va(NAMES) + name_id * NAME_SIZE + field)
     return _plain(image.raw_string(pointer)) if pointer else None
 
 
@@ -290,7 +290,7 @@ def _team_name(image: _Image, team: int) -> str | None:
     # WIRE HEADS DATA (0x013f5a) writes its own text for none, "None" or "".
     if not 0 <= team < TEAM_NAME_COUNT:
         return None
-    pointer = image.u32(TEAM_NAMES + team * 4)
+    pointer = image.u32(image.va(TEAM_NAMES) + team * 4)
     name = _plain(image.raw_string(pointer)) if pointer else ""
     return name if name not in ("", "None") else None
 
@@ -298,7 +298,7 @@ def _team_name(image: _Image, team: int) -> str | None:
 def pilot(image: _Image, index: int, tables: GameTables) -> dict:
     """A pilot record; its first two shorts are name-table ids, the third
     its team, and +8 its bounty curve."""
-    record = PILOTS + index * PILOT_SIZE
+    record = image.va(PILOTS) + index * PILOT_SIZE
     pilot_name, robot_name = _short(image, record), _short(image, record + 2)
     return {
         "index": index,
@@ -316,6 +316,7 @@ def part_tables(data: bytes, tables: GameTables) -> dict:
     """``{"chips", "arm_weapons", "shoulder_weapons", "bodies", "legs",
     "leg_motion_speeds", "pilots"}``."""
     image = _Image(data)
+    speeds_va = image.va(LEG_MOTION_SPEEDS)
     return {
         "chips": [chip(image, index, tables) for index in range(CHIP_COUNT)],
         "arm_weapons": [weapon(image, ARM_WEAPONS, index) for index in range(ARM_WEAPON_COUNT)],
@@ -325,7 +326,7 @@ def part_tables(data: bytes, tables: GameTables) -> dict:
         "bodies": [body(image, index) for index in range(BODY_COUNT)],
         "legs": [legs(image, index) for index in range(LEGS_COUNT)],
         "leg_motion_speeds": [
-            dict(zip(("walk", "dash"), _floats(image, LEG_MOTION_SPEEDS + model * 8, 2)))
+            dict(zip(("walk", "dash"), _floats(image, speeds_va + model * 8, 2)))
             for model in range(COMPUTER_LEGS_MODELS)
         ],
         "pilots": [pilot(image, index, tables) for index in range(PILOT_COUNT)],

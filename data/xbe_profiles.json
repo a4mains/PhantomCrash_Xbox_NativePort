@@ -1,0 +1,142 @@
+{
+ "notes": [
+  "Per-release XBE address profiles for multi-region asset extraction.",
+  "Only cryptographic SHA-256 digests and virtual addresses are stored here."
+ ],
+ "profiles": {
+  "europe": {
+   "id": "europe",
+   "label": "Phantom Crash (Europe / PAL)",
+   "sha256": "bdbe2c3eb2361395babfe6095d1a2da72f6581dccb34812b8d45e084c6c903c6",
+   "artifacts_dir": "europe",
+   "table_ranges": [
+    [
+     "0x000000",
+     "0xffffffff",
+     0
+    ]
+   ],
+   "table_overrides": {},
+   "text_ranges": [
+    [
+     "0x000000",
+     "0xffffffff",
+     0
+    ]
+   ],
+   "text_overrides": {}
+  },
+  "usa": {
+   "id": "usa",
+   "label": "Phantom Crash (USA / NTSC-U)",
+   "sha256": "ee1caf6b0bde47abb104368657c44d078904684482ff60be5958e2201f5162d0",
+   "artifacts_dir": "usa",
+   "table_ranges": [
+    [
+     "0x19f870",
+     "0x1d6a80",
+     0
+    ],
+    [
+     "0x2014c8",
+     "0x220000",
+     -224
+    ],
+    [
+     "0x220000",
+     "0x415000",
+     -232
+    ]
+   ],
+   "table_overrides": {
+    "0x0d0f07": "0x0d0e67",
+    "0x0d19ea": "0x0d194a",
+    "0x11d060": "0x11cfc0",
+    "0x11e660": "0x11e500",
+    "0x17ac38": "0x17aad8",
+    "0x17bec4": "0x17bd64",
+    "0x1db4a0": "0x17cf88",
+    "0x1efd38": "0x1efcc8"
+   },
+   "text_ranges": [
+    [
+     "0x17a620",
+     "0x17d110",
+     -352
+    ],
+    [
+     "0x17d110",
+     "0x17d1b0",
+     -280
+    ],
+    [
+     "0x17d1b0",
+     "0x190210",
+     -240
+    ],
+    [
+     "0x190210",
+     "0x19f164",
+     -120
+    ],
+    [
+     "0x19f164",
+     "0x1d6a80",
+     0
+    ],
+    [
+     "0x1d6a80",
+     "0x1fc000",
+     -112
+    ],
+    [
+     "0x1fc000",
+     "0x240000",
+     -224
+    ],
+    [
+     "0x240000",
+     "0x415000",
+     -232
+    ]
+   ],
+   "text_overrides": {
+    "0x1896a8": "0x18c620",
+    "0x189aa8": "0x18dc78",
+    "0x189d20": "0x18def0",
+    "0x18a118": "0x18f4d0",
+    "0x18a5b0": "0x18ac10",
+    "0x18fff0": "0x190158",
+    "0x190210": "0x190378",
+    "0x190298": "0x190400",
+    "0x190368": "0x1904d0",
+    "0x1905c8": "0x190730",
+    "0x190868": "0x1909d0",
+    "0x190ac0": "0x190c28",
+    "0x190d60": "0x190ec8",
+    "0x190fd8": "0x191140",
+    "0x191270": "0x1913d8",
+    "0x1914d0": "0x191638",
+    "0x191708": "0x191870",
+    "0x191978": "0x191ae0",
+    "0x191b60": "0x191cc8",
+    "0x191d00": "0x191e68",
+    "0x191fc8": "0x192130",
+    "0x192218": "0x192380",
+    "0x192440": "0x1925a8",
+    "0x1926b0": "0x192818",
+    "0x192900": "0x192a68",
+    "0x192b08": "0x192c70",
+    "0x192d20": "0x192e88",
+    "0x192ff0": "0x193158",
+    "0x1931d0": "0x193338",
+    "0x193448": "0x18ff00",
+    "0x195428": "0x196810",
+    "0x195a60": "0x1974c0",
+    "0x195d78": "0x196128",
+    "0x197e18": "0x198048",
+    "0x199b76": "0x199c38"
+   }
+  }
+ }
+}

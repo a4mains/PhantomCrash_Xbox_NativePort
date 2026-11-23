@@ -44,7 +44,7 @@ def extract(executable: bytes, catalogue: dict, packs) -> dict:
                 continue
             for side, table in enumerate(tables):
                 model_id = definition["models"][side]
-                resource = image.u32(table + part * 4)
+                resource = image.u32(image.va(table) + part * 4)
                 source = packs.read(resource)
                 geometry = packs.read(model_id)
                 if source is None or geometry is None:

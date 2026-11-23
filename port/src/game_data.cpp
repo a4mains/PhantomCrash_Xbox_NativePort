@@ -38,13 +38,34 @@ std::string check_files(const GameDataPaths &paths) {
 
 } // namespace
 
-GameDataPaths game_data_paths(const std::filesystem::path &root) {
-  const auto europe = root / "artifacts" / "europe";
-  return {europe, europe / "files", europe / "metadata", europe / "assets"};
+GameDataPaths game_data_paths_for_region(const std::filesystem::path &root,
+                                         const std::string_view region) {
+  const std::string id(region.empty() ? "europe" : region);
+  const auto folder = root / "artifacts" / id;
+  return {folder, folder / "files", folder / "metadata", folder / "assets", id};
 }
 
-GameDataStatus game_data_status(const std::filesystem::path &root) {
-  const GameDataPaths paths = game_data_paths(root);
+GameDataPaths game_data_paths(const std::filesystem::path &root) {
+  std::error_code error;
+  for (const std::string_view region : {"europe", "usa"}) {
+    const auto candidate = game_data_paths_for_region(root, region);
+    if (std::filesystem::is_regular_file(candidate.assets / "manifest.json", error) ||
+        std::filesystem::is_regular_file(candidate.metadata / "disc.json", error)) {
+      return candidate;
+    }
+  }
+  for (const std::string_view region : {"europe", "usa"}) {
+    const auto candidate = game_data_paths_for_region(root, region);
+    if (std::filesystem::is_directory(candidate.assets, error) ||
+        std::filesystem::is_directory(candidate.files / "Media", error)) {
+      return candidate;
+    }
+  }
+  return game_data_paths_for_region(root, "europe");
+}
+
+GameDataStatus game_data_status(const std::filesystem::path &root, const std::string_view region) {
+  const GameDataPaths paths = game_data_paths_for_region(root, region);
   GameDataStatus status;
   status.problem = check_files(paths);
   status.files = status.problem.empty();
@@ -74,6 +95,10 @@ GameDataStatus game_data_status(const std::filesystem::path &root) {
     status.problem = assets_problem;
   }
   return status;
+}
+
+GameDataStatus game_data_status(const std::filesystem::path &root) {
+  return game_data_status(root, game_data_paths(root).region);
 }
 
 } // namespace phantomcrash

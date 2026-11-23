@@ -203,7 +203,7 @@ def _convert_collision(
     image = game_tables._Image(executable)
     count = collision.STAGE_COUNT
     stage_ids = struct.unpack_from(
-        f"<{count}I", image.data, image.offset(collision.STAGE_COLLISION, 4 * count)
+        f"<{count}I", image.data, image.offset(image.va(collision.STAGE_COLLISION), 4 * count)
     )
     resources = {resource.id: resource for resource in tables.resources}
     records = []

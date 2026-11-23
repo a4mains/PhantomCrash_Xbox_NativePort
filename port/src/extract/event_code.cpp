@@ -60,11 +60,17 @@ std::optional<std::uint32_t> EventCode::next_state(const std::uint32_t address) 
 std::uint32_t event_script_address(const XbeImage &image, const int scene,
                                    const XbeSection &segment) {
   const EventCode code(image);
-  const std::uint32_t factory = image.u32(scene_factories + 4 * static_cast<std::uint32_t>(scene));
+  const std::uint32_t factory =
+      image.u32(image.va(scene_factories) + 4 * static_cast<std::uint32_t>(scene));
+  const std::uint32_t create_task = image.va(create_event_task);
+  const std::uint32_t run_task_script = image.va(run_script);
   for (const auto &[unused, creator] : code.calls(factory)) {
+    if (!image.mapped(creator)) {
+      continue;
+    }
     std::optional<std::size_t> created;
     for (const auto &[offset, target] : code.calls(creator)) {
-      if (target == create_event_task) {
+      if (target == create_task) {
         created = offset;
         break;
       }
@@ -78,7 +84,7 @@ std::uint32_t event_script_address(const XbeImage &image, const int scene,
       throw FormatError("No next state in event start " + std::to_string(start));
     }
     for (const auto &[offset, target] : code.calls(*runner)) {
-      if (target == run_script) {
+      if (target == run_task_script) {
         const std::uint32_t script = code.pushes(*runner, offset).back();
         const std::uint32_t low = segment.virtual_address;
         if (low <= script && script < low + segment.raw_size) {

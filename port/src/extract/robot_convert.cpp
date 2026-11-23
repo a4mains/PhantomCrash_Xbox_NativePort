@@ -150,7 +150,7 @@ std::size_t convert_motions(const RobotResources &wanted, BinlinkPacks &packs, c
 
 Json convert_collision(const XbeImage &image, const GameTables &tables, const fs::path &media,
                        BinlinkPacks &packs, const fs::path &output, const Progress &report) {
-  const auto stage_ids = image.u32s(stage_collision, stage_count);
+  const auto stage_ids = image.u32s(image.va(stage_collision), stage_count);
   const std::set<std::uint32_t> unique(stage_ids.begin(), stage_ids.end());
   Json records = array();
   for (const std::uint32_t id : unique) {

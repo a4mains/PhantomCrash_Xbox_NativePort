@@ -85,16 +85,16 @@ public:
     if (name_id < 0 || name_id >= name_count) {
       return null();
     }
-    const std::int16_t sprite =
-        image_.i16(names + static_cast<std::uint32_t>(name_id) * name_size + name_face);
+    const std::int16_t sprite = image_.i16(
+        image_.va(names) + static_cast<std::uint32_t>(name_id) * name_size + name_face);
     return sprite >= 0 ? sprite_json(tables_, sprite) : null();
   }
   Json entry_name(int name_id, std::uint32_t field_offset) const {
     if (name_id < 0 || name_id >= name_count) {
       return null();
     }
-    const std::uint32_t pointer =
-        image_.u32(names + static_cast<std::uint32_t>(name_id) * name_size + field_offset);
+    const std::uint32_t pointer = image_.u32(
+        image_.va(names) + static_cast<std::uint32_t>(name_id) * name_size + field_offset);
     return pointer != 0 ? text(plain(image_.raw_string(pointer))) : null();
   }
   // WIRE HEADS DATA (0x013f5a) writes its own text for none, "None" or "".
@@ -102,7 +102,8 @@ public:
     if (team < 0 || team >= team_name_count) {
       return null();
     }
-    const std::uint32_t pointer = image_.u32(team_names + static_cast<std::uint32_t>(team) * 4);
+    const std::uint32_t pointer =
+        image_.u32(image_.va(team_names) + static_cast<std::uint32_t>(team) * 4);
     const std::string found = pointer != 0 ? plain(image_.raw_string(pointer)) : "";
     return found.empty() || found == "None" ? null() : text(found);
   }
@@ -125,7 +126,7 @@ private:
 };
 
 Json chip(const Parts &p, int index) {
-  const std::uint32_t r = chips + static_cast<std::uint32_t>(index) * chip_size;
+  const std::uint32_t r = p.image().va(chips) + static_cast<std::uint32_t>(index) * chip_size;
   return object({{"index", integer(index)},
                  {"name", p.name(r)},
                  {"chatter", p.short_value(r + 0x18)},
@@ -144,8 +145,8 @@ Json chip(const Parts &p, int index) {
 }
 
 Json weapon(const Parts &p, std::uint32_t table, int index) {
-  const std::uint32_t r = table + static_cast<std::uint32_t>(index) * weapon_size;
   const XbeImage &image = p.image();
+  const std::uint32_t r = image.va(table) + static_cast<std::uint32_t>(index) * weapon_size;
   return object({{"index", integer(index)},
                  {"name", p.name(r)},
                  {"family", integer(image.i32(r + 4))},
@@ -186,7 +187,7 @@ Json weapon(const Parts &p, std::uint32_t table, int index) {
 }
 
 Json body(const Parts &p, int index) {
-  const std::uint32_t r = bodies + static_cast<std::uint32_t>(index) * body_size;
+  const std::uint32_t r = p.image().va(bodies) + static_cast<std::uint32_t>(index) * body_size;
   const std::uint8_t kind = p.image().u8(r + 4);
   const int player_floor =
       kind < player_body_floors.size() ? player_body_floors[kind] : floor_default;
@@ -202,7 +203,8 @@ Json body(const Parts &p, int index) {
 }
 
 Json legs(const Parts &p, int index) {
-  const std::uint32_t r = legs_records + static_cast<std::uint32_t>(index) * legs_size;
+  const std::uint32_t r =
+      p.image().va(legs_records) + static_cast<std::uint32_t>(index) * legs_size;
   const std::int32_t model = p.image().i32(r + 8);
   int computer_floor = floor_default;
   if (0 <= model && model < computer_legs_models) {
@@ -228,7 +230,7 @@ Json legs(const Parts &p, int index) {
 }
 
 Json pilot(const Parts &p, int index) {
-  const std::uint32_t r = pilots + static_cast<std::uint32_t>(index) * pilot_size;
+  const std::uint32_t r = p.image().va(pilots) + static_cast<std::uint32_t>(index) * pilot_size;
   const int pilot_name = p.image().i16(r);
   const int robot_name = p.image().i16(r + 2);
   return object({{"index", integer(index)},
@@ -272,8 +274,9 @@ Json part_tables(const XbeImage &image, const GameTables &tables) {
   }
   put(out, "legs", std::move(list));
   list = array();
+  const std::uint32_t speeds_va = image.va(leg_motion_speeds);
   for (int model = 0; model < computer_legs_models; ++model) {
-    const auto speeds = image.f32s(leg_motion_speeds + static_cast<std::uint32_t>(model) * 8, 2);
+    const auto speeds = image.f32s(speeds_va + static_cast<std::uint32_t>(model) * 8, 2);
     push(list, object({{"walk", rounded(speeds[0], 6)}, {"dash", rounded(speeds[1], 6)}}));
   }
   put(out, "leg_motion_speeds", std::move(list));

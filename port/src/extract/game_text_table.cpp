@@ -57,7 +57,7 @@ Json write_game_text(const XbeImage &image, const std::vector<fs::path> &sources
   for (const auto &[address, file] : references(sources)) {
     std::string string;
     try {
-      string = plain(image.raw_string(address));
+      string = plain(image.raw_string(image.text_va(address)));
     } catch (const std::exception &failure) {
       throw std::runtime_error(std::format("{}: {} names no text in the executable ({})",
                                            utf8_name(file), game_text_reference(address),

@@ -91,7 +91,7 @@ def _level(value: int) -> int:
 
 
 def robot(image: _Image, index: int) -> dict:
-    record = ROBOTS + index * ROBOT_SIZE
+    record = image.va(ROBOTS) + index * ROBOT_SIZE
     shorts = _shorts(image, record, ROBOT_NAME // 2)
     parts = {}
     for slot, name in enumerate(ROBOT_PARTS):
@@ -109,23 +109,23 @@ def robot(image: _Image, index: int) -> dict:
 
 
 def lineup(image: _Image, index: int) -> list[dict]:
-    words = _ints(image, LINEUPS + index * LINEUP_SIZE * 8, LINEUP_SIZE * 2)
+    words = _ints(image, image.va(LINEUPS) + index * LINEUP_SIZE * 8, LINEUP_SIZE * 2)
     return [{"robot": words[k * 2], "picture": words[k * 2 + 1]} for k in range(LINEUP_SIZE)]
 
 
 def shop_lineup(image: _Image, table: int, index: int) -> list[dict]:
-    words = _ints(image, table + index * SHOP_LINEUP_SIZE, SHOP_LINEUP_ITEMS * 2)
+    words = _ints(image, image.va(table) + index * SHOP_LINEUP_SIZE, SHOP_LINEUP_ITEMS * 2)
     pairs = zip(words[0::2], words[1::2])
     return [{"id": item, "level": level} for item, level in pairs if item >= 0]
 
 
 def used_sv_lineup(image: _Image, index: int) -> list[int]:
-    words = _ints(image, USED_SV_LINEUPS + index * USED_SV_LINEUP_SIZE, USED_SV_LINEUP_ITEMS * 2)
+    words = _ints(image, image.va(USED_SV_LINEUPS) + index * USED_SV_LINEUP_SIZE, USED_SV_LINEUP_ITEMS * 2)
     return [robot for robot in words[0::2] if robot >= 0]
 
 
 def module(image: _Image, index: int) -> dict:
-    record = MODULES + index * MODULE_SIZE
+    record = image.va(MODULES) + index * MODULE_SIZE
     words = _ints(image, record, MODULE_SIZE // 4)
     weight, float_14, float_18 = (
         round(struct.unpack_from("<f", image.data, image.offset(record + at))[0], 5)
@@ -150,7 +150,7 @@ def module(image: _Image, index: int) -> dict:
 
 
 def _entry(image: _Image, table: int, index: int) -> dict:
-    name, number, price = _ints(image, table + index * ENTRY_SIZE, 3)
+    name, number, price = _ints(image, image.va(table) + index * ENTRY_SIZE, 3)
     return {"name": _text(image, name & 0xFFFFFFFF), "index": number, "price": price}
 
 

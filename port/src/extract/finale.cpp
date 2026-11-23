@@ -27,7 +27,7 @@ constexpr int subtitle_limit = 64;
 constexpr std::uint8_t push_imm32 = 0x68;
 
 Json light_point_list(const XbeImage &image) {
-  const ByteView code = image.data().subspan(image.offset(light_points_init, 96), 96);
+  const ByteView code = image.data().subspan(image.offset(image.va(light_points_init), 96), 96);
   std::vector<double> pushed;
   for (std::size_t index = 0; pushed.size() < light_points * 3 && index + 4 < code.size();) {
     if (code[index] == push_imm32) {
@@ -49,20 +49,23 @@ Json light_point_list(const XbeImage &image) {
 
 // The camera carrier's routes: route r's Bezier segments at its speed.
 Json carrier_route_list(const XbeImage &image) {
+  const std::uint32_t routes_va = image.va(supply_routes);
+  const std::uint32_t speeds_va = image.va(carrier_speeds);
   Json routes = array();
   for (std::uint32_t route = 0; route < carrier_routes; ++route) {
-    const std::uint32_t record = supply_routes + (carrier_first_record + route) * supply_route_size;
+    const std::uint32_t record = routes_va + (carrier_first_record + route) * supply_route_size;
     const auto words = image.u32s(record, 2);
     push(routes, object({{"segments", bezier_segments(image, words[0], words[1])},
-                         {"speed", rounded(image.f32(carrier_speeds + route * 4), 7)}}));
+                         {"speed", rounded(image.f32(speeds_va + route * 4), 7)}}));
   }
   return routes;
 }
 
 Json call_in_frames(const XbeImage &image) {
+  const std::uint32_t call_ins_va = image.va(call_ins);
   Json frames = array();
   for (int index = 0; index < call_in_limit; ++index) {
-    const std::int32_t frame = image.i32(call_ins + static_cast<std::uint32_t>(index) * 4);
+    const std::int32_t frame = image.i32(call_ins_va + static_cast<std::uint32_t>(index) * 4);
     if (frame < 0) {
       break;
     }
@@ -74,11 +77,13 @@ Json call_in_frames(const XbeImage &image) {
 } // namespace
 
 Json finale_tables(const XbeImage &image, const GameTables &tables) {
+  const std::uint32_t phase_table_va = image.va(phase_table);
   Json scripts = array();
   std::map<std::uint32_t, std::size_t> by_address;
   Json phases = array();
   for (int state = first_state; state <= last_state; ++state) {
-    const std::uint32_t row = phase_table + static_cast<std::uint32_t>(state - first_state) * phase_size;
+    const std::uint32_t row =
+        phase_table_va + static_cast<std::uint32_t>(state - first_state) * phase_size;
     image.require(row, phase_size);
     Json lights = array();
     for (const std::uint32_t offset : {0x14u, 0x1Cu, 0x24u}) {
@@ -118,9 +123,10 @@ Json finale_tables(const XbeImage &image, const GameTables &tables) {
 }
 
 Json ending_subtitles(const XbeImage &image) {
+  const std::uint32_t subtitles_va = image.va(subtitles);
   Json entries = array();
   for (int index = 0; index < subtitle_limit; ++index) {
-    const std::uint32_t at = subtitles + static_cast<std::uint32_t>(index) * subtitle_size;
+    const std::uint32_t at = subtitles_va + static_cast<std::uint32_t>(index) * subtitle_size;
     image.require(at, subtitle_size);
     const std::int16_t start = image.i16(at);
     const std::int16_t end = image.i16(at + 2);

@@ -138,15 +138,19 @@ class _Code:
 def _script_address(image: _Image, scene: int, segment) -> int:
     """The script an event scene runs: factory -> event creator -> start -> script."""
     code = _Code(image)
-    factory = image.u32(SCENE_FACTORIES + 4 * scene)
+    factory = image.u32(image.va(SCENE_FACTORIES) + 4 * scene)
+    create_task = image.va(CREATE_EVENT_TASK)
+    run_task_script = image.va(RUN_SCRIPT)
     for _, creator in code.calls(factory):
-        created = [offset for offset, target in code.calls(creator) if target == CREATE_EVENT_TASK]
+        if not image.mapped(creator):
+            continue
+        created = [offset for offset, target in code.calls(creator) if target == create_task]
         if not created:
             continue
         start = code.pushes(creator, created[0])[-1]
         runner = code.next_state(start)
         for offset, target in code.calls(runner):
-            if target == RUN_SCRIPT:
+            if target == run_task_script:
                 script = code.pushes(runner, offset)[-1]
                 low = segment.virtual_address
                 if low <= script < low + segment.raw_size:
@@ -286,7 +290,7 @@ def commands(image: _Image, tables: GameTables, address: int) -> list[dict]:
 
 
 def _pose(tables: GameTables, image: _Image, pose_id: int) -> dict:
-    address = TALK_POSES + pose_id * 0x1C
+    address = image.va(TALK_POSES) + pose_id * 0x1C
     body, *faces = _ints(image, address, 5)
     offsets = image.data[image.offset(address + 20, 8) : image.offset(address + 20, 8) + 8]
 
@@ -312,9 +316,11 @@ def _pose(tables: GameTables, image: _Image, pose_id: int) -> dict:
 def talk_tables(data: bytes, tables: GameTables) -> dict:
     """Backgrounds and characters of the talk scenes."""
     image = _Image(data)
+    backgrounds_va = image.va(TALK_BACKGROUNDS)
+    characters_va = image.va(TALK_CHARACTERS)
     backgrounds = []
     for index in range(TALK_BACKGROUND_COUNT):
-        back, front = _ints(image, TALK_BACKGROUNDS + 8 * index, 2)
+        back, front = _ints(image, backgrounds_va + 8 * index, 2)
         backgrounds.append(
             {
                 "back": {**sprite_json(tables, back), "position": [0, 0], "layer": 0},
@@ -327,7 +333,7 @@ def talk_tables(data: bytes, tables: GameTables) -> dict:
         )
     characters = []
     for index in range(TALK_CHARACTER_COUNT):
-        resource, *poses = _ints(image, TALK_CHARACTERS + 0x28 * index, 10)
+        resource, *poses = _ints(image, characters_va + 0x28 * index, 10)
         path = tables.resources[resource].path.rsplit(".", 1)[0]
         characters.append(
             {
@@ -347,10 +353,11 @@ def events(data: bytes, tables: GameTables) -> list[dict]:
     """Every story event with its trigger, background, cast, music and script."""
     image = _Image(data)
     segment = _section(image, EVENTSEG)
+    event_table_va = image.va(EVENT_TABLE)
     records = []
-    scenes = [_ints(image, EVENT_TABLE + index * EVENT_RECORD, 1)[0] for index in range(EVENT_COUNT)]
+    scenes = [_ints(image, event_table_va + index * EVENT_RECORD, 1)[0] for index in range(EVENT_COUNT)]
     for index in range(EVENT_COUNT):
-        base = EVENT_TABLE + index * EVENT_RECORD
+        base = event_table_va + index * EVENT_RECORD
         scene, from_scene, to_scene = _ints(image, base, 3)
         raw = image.data[image.offset(base, EVENT_RECORD) : image.offset(base, EVENT_RECORD) + EVENT_RECORD]
         music = struct.unpack_from("<h", raw, 0x1E)[0]

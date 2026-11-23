@@ -6,6 +6,7 @@
 #include "py_json.hpp"
 #include "sha256.hpp"
 #include "text.hpp"
+#include "xbe_profile.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -24,7 +25,7 @@ std::string sha256_hex(std::string_view data, bool hardware) {
   return hash.hex();
 }
 
-void write_text(const std::filesystem::path &path, const std::string &text) {
+void write_fixture_text(const std::filesystem::path &path, const std::string &text) {
   std::filesystem::create_directories(path.parent_path());
   std::ofstream(path, std::ios::binary) << text;
 }
@@ -137,27 +138,59 @@ TEST_CASE("game data status") {
   const GameDataPaths paths = game_data_paths(root);
   CHECK(!game_data_status(root).files);
 
-  write_text(paths.files / "Media" / "a.bin", "1234");
-  write_text(paths.metadata / "disc.json", R"({"files": [{"path": "/Media/a.bin", "size": 4}]})");
-  write_text(paths.assets / "manifest.json", R"({"format_version": 1, "complete": true})");
+  write_fixture_text(paths.files / "Media" / "a.bin", "1234");
+  write_fixture_text(paths.metadata / "disc.json", R"({"files": [{"path": "/Media/a.bin", "size": 4}]})");
+  write_fixture_text(paths.assets / "manifest.json", R"({"format_version": 1, "complete": true})");
   GameDataStatus status = game_data_status(root);
   CHECK(status.files);
   CHECK(!status.assets); // written by the Python tools: version 1
   CHECK(status.assets_version == 1);
 
-  write_text(paths.assets / "manifest.json",
-             "{\"converter_version\": " + std::to_string(converted_assets_version) +
-                 ", \"complete\": false}");
+  write_fixture_text(paths.assets / "manifest.json",
+                     "{\"converter_version\": " + std::to_string(converted_assets_version) +
+                         ", \"complete\": false}");
   CHECK(!game_data_status(root).assets);
-  write_text(paths.assets / "manifest.json",
-             "{\"converter_version\": " + std::to_string(converted_assets_version) +
-                 ", \"complete\": true}");
+  write_fixture_text(paths.assets / "manifest.json",
+                     "{\"converter_version\": " + std::to_string(converted_assets_version) +
+                         ", \"complete\": true}");
   status = game_data_status(root);
   CHECK(status.files && status.assets && status.problem.empty());
 
-  write_text(paths.files / "Media" / "a.bin", "12345");
+  write_fixture_text(paths.files / "Media" / "a.bin", "12345");
   status = game_data_status(root);
   CHECK(!status.files && status.assets);
   CHECK(status.problem.find("/Media/a.bin") != std::string::npos);
+  std::filesystem::remove_all(root);
+}
+
+TEST_CASE("xbe profiles remap canonical table and text addresses") {
+  const XbeProfile &eu = europe_profile();
+  const XbeProfile &us = usa_profile();
+  CHECK(eu.id == "europe");
+  CHECK(us.id == "usa");
+  CHECK(eu.table(0x254480) == 0x254480);
+  CHECK(us.table(0x254480) == 0x254398);
+  CHECK(us.table(0x19F870) == 0x19F870);
+  CHECK(us.table(0x1DB4A0) == 0x17CF88);
+  CHECK(us.table(0x0D0F07) == 0x0D0E67);
+  CHECK(us.text(0x193448) == 0x18FF00);
+  CHECK(us.text(0x19B848) == 0x19B7D0);
+  CHECK(us.text(0x1C34A8) == 0x1C34A8);
+  CHECK(match_xbe_profile(us.sha256).has_value());
+  CHECK(!match_xbe_profile("0000").has_value());
+}
+
+TEST_CASE("game data paths select installed usa region automatically") {
+  const auto root = std::filesystem::temp_directory_path() / "phantomcrash_usa_region_test";
+  std::filesystem::remove_all(root);
+  CHECK(game_data_paths(root).region == "europe");
+  const GameDataPaths usa = game_data_paths_for_region(root, "usa");
+  CHECK(usa.region == "usa");
+  CHECK(usa.europe == root / "artifacts" / "usa");
+  write_fixture_text(usa.assets / "manifest.json",
+                     "{\"converter_version\": " + std::to_string(converted_assets_version) +
+                         ", \"complete\": true}");
+  CHECK(game_data_paths(root).region == "usa");
+  CHECK(game_data_status(root).assets);
   std::filesystem::remove_all(root);
 }

@@ -36,7 +36,8 @@ constexpr std::size_t triangle_size = 0x34; // "<12fI"
 constexpr int collision_decimals = 4;
 
 std::vector<std::pair<std::uint32_t, std::uint32_t>> stage_object_list(const XbeImage &image, int stage) {
-  const std::uint32_t address = image.u32(stage_objects + static_cast<std::uint32_t>(stage) * 4);
+  const std::uint32_t address =
+      image.u32(image.va(stage_objects) + static_cast<std::uint32_t>(stage) * 4);
   std::vector<std::pair<std::uint32_t, std::uint32_t>> out;
   for (;;) {
     const auto entry = image.u32s(address + static_cast<std::uint32_t>(out.size()) * 16, 4);
@@ -94,7 +95,7 @@ Json parse_collision(ByteView data) {
 
 Json convert_stages(const XbeImage &image, const GameTables &tables, BinlinkPacks &packs,
                     const fs::path &output, const Progress &report) {
-  const auto models = image.u32s(stage_models, city_stages);
+  const auto models = image.u32s(image.va(stage_models), city_stages);
   std::map<std::uint32_t, std::string> paths;
   for (const std::uint32_t resource : area_paths) {
     const auto data = packs.read(resource);

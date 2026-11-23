@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import shutil
 from typing import BinaryIO, Callable
 
-from . import xbe
+from . import xbe, xbe_profile
 from .xdvdfs import XdvdfsImage
 
 _HASH_CHUNK = 8 * 1024 * 1024
@@ -88,5 +89,63 @@ def extract(
     executable = files_root / "default.xbe"
     header = xbe.parse(executable.read_bytes()).to_dict()
     header["sha256"] = next(r["sha256"] for r in records if r["path"].lower() == "/default.xbe")
+    _write_json(output / "metadata" / "xbe.json", header)
+    return {"disc": disc_record, "xbe": header}
+
+
+def _find_ci(directory: Path, name: str, is_dir: bool) -> Path | None:
+    exact = directory / name
+    if exact.is_dir() if is_dir else exact.is_file():
+        return exact
+    needle = name.lower()
+    for entry in directory.iterdir():
+        if entry.name.lower() == needle and (entry.is_dir() if is_dir else entry.is_file()):
+            return entry
+    return None
+
+
+def extract_from_source(
+    source_dir: Path, output: Path, progress: Callable[[str], None] | None = None
+) -> dict:
+    """Copy an already-extracted ``default.xbe`` + ``Media/`` directory into ``output``."""
+    if output.exists() and any(output.iterdir()):
+        raise FileExistsError(f"Output directory is not empty: {output}")
+    xbe_src = _find_ci(source_dir, "default.xbe", False)
+    media_src = _find_ci(source_dir, "Media", True)
+    if xbe_src is None or media_src is None:
+        raise FileNotFoundError(
+            f"{source_dir} does not look like an extracted disc (default.xbe and Media/)"
+        )
+    report = progress or (lambda _message: None)
+    xbe_bytes = xbe_src.read_bytes()
+    xbe_profile.require_profile(xbe_bytes)
+    files_root = output / "files"
+    files_root.mkdir(parents=True, exist_ok=True)
+
+    pairs: list[tuple[Path, Path, str]] = [
+        (xbe_src, files_root / "default.xbe", "/default.xbe"),
+    ]
+    for src in sorted(media_src.rglob("*")):
+        if src.is_file():
+            rel = src.relative_to(media_src).as_posix()
+            pairs.append((src, files_root / "Media" / rel, f"/Media/{rel}"))
+
+    records = []
+    for src, dst, disc_path in pairs:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        size = dst.stat().st_size
+        records.append({"path": disc_path, "size": size, "sha256": sha256_file(dst)})
+        report(f"{size:>12,}  {disc_path}")
+
+    disc_record = {
+        "image": str(source_dir),
+        "file_count": len(records),
+        "total_bytes": sum(r["size"] for r in records),
+        "files": records,
+    }
+    _write_json(output / "metadata" / "disc.json", disc_record)
+    header = xbe.parse(xbe_bytes).to_dict()
+    header["sha256"] = next(r["sha256"] for r in records if r["path"] == "/default.xbe")
     _write_json(output / "metadata" / "xbe.json", header)
     return {"disc": disc_record, "xbe": header}

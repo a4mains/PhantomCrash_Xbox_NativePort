@@ -126,8 +126,8 @@ bool prepare_game_data(const std::filesystem::path &root, const bool interactive
     if (!status.files) {
       const bool first = !disc;
       if (!ask(first
-                   ? "The game data has not been installed yet. Choose your Phantom Crash (Europe) "
-                     "disc image (.iso) to install it; this is needed only once."
+                   ? "The game data has not been installed yet. Choose your Phantom Crash (Europe or "
+                     "USA) disc image (.iso) to install it; this is needed only once."
                    : "That disc image could not be installed. Choose another?",
                "Choose disc image...")) {
         return false;

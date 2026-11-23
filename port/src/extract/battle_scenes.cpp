@@ -57,7 +57,7 @@ Json vec3(const XbeImage &image, std::uint32_t address) {
 }
 
 Json gates(const XbeImage &image, std::uint32_t stage) {
-  const auto words = image.u32s(gate_table + stage * 12, 3);
+  const auto words = image.u32s(image.va(gate_table) + stage * 12, 3);
   Json out = array();
   for (std::uint32_t index = 0; index < words[1]; ++index) {
     push(out, object({{"position", vec3(image, words[0] + index * 12)},
@@ -82,16 +82,18 @@ std::vector<double> rounded4(std::vector<double> values) {
 
 DoorLeaf door_leaf(const XbeImage &image, std::uint32_t stage, std::uint32_t index,
                    std::uint32_t first_model) {
-  const std::uint32_t record = image.u32(object_records + stage * 4) + index * object_record;
+  const std::uint32_t record =
+      image.u32(image.va(object_records) + stage * 4) + index * object_record;
   DoorLeaf leaf;
   leaf.mesh = std::int64_t{image.u32(record)} - first_model;
   leaf.position = rounded4(image.f32s(record + 8, 3));
   leaf.rotation = rounded4(image.f32s(record + 0x14, 3));
   const std::int32_t template_index = image.i32(record + 0x2C);
   leaf.gate = image.i32(record + 0x30);
-  leaf.kind = image.i32(image.u32(object_types + stage * 4) + static_cast<std::uint32_t>(template_index) * 4);
-  const std::uint32_t triangles =
-      image.u32(object_collision + stage * 4) + static_cast<std::uint32_t>(template_index) * object_template;
+  leaf.kind = image.i32(image.u32(image.va(object_types) + stage * 4) +
+                        static_cast<std::uint32_t>(template_index) * 4);
+  const std::uint32_t triangles = image.u32(image.va(object_collision) + stage * 4) +
+                                  static_cast<std::uint32_t>(template_index) * object_template;
   leaf.collision = array();
   for (std::uint32_t at = triangles; at < triangles + object_template; at += 36) {
     push(leaf.collision, rounded_list(image.f32s(at, 9), 4));
@@ -132,8 +134,8 @@ Json doors(const XbeImage &image, std::uint32_t stage) {
 }
 
 Json fixed_camera_set(const XbeImage &image, std::uint32_t stage) {
-  const auto words = image.u32s(fixed_cameras + stage * 8, 2);
-  const std::uint32_t areas = image.u32(fixed_camera_areas + stage * 4);
+  const auto words = image.u32s(image.va(fixed_cameras) + stage * 8, 2);
+  const std::uint32_t areas = image.u32(image.va(fixed_camera_areas) + stage * 4);
   const auto ranges = image.u32s(areas, 2 * fixed_camera_area_count);
   Json points = array();
   for (std::uint32_t i = 0; i < words[1]; ++i) {
@@ -147,11 +149,12 @@ Json fixed_camera_set(const XbeImage &image, std::uint32_t stage) {
 }
 
 Json supply_route_list(const XbeImage &image, std::uint32_t stage) {
-  const std::int32_t count = image.i32(supply_route_counts + stage * 4);
+  const std::int32_t count = image.i32(image.va(supply_route_counts) + stage * 4);
+  const std::uint32_t routes_va = image.va(supply_routes);
   Json routes = array();
   for (std::int32_t route = 0; route < count; ++route) {
     const std::uint32_t record =
-        supply_routes + (stage + gate_stages * static_cast<std::uint32_t>(route)) * supply_route_size;
+        routes_va + (stage + gate_stages * static_cast<std::uint32_t>(route)) * supply_route_size;
     const auto words = image.u32s(record, 7);
     push(routes, object({{"segments", bezier_segments(image, words[0], words[1])},
                          {"closing", integer(words[2])},
@@ -184,8 +187,9 @@ Json battle_scenes(const XbeImage &image) {
   for (std::uint32_t s = 8; s < 19; ++s) {
     scene_states.push_back(s);
   }
+  const std::uint32_t scene_table_va = image.va(scene_table);
   for (const std::uint32_t state : scene_states) {
-    const std::uint32_t entry = scene_table + state * scene_entry;
+    const std::uint32_t entry = scene_table_va + state * scene_entry;
     const auto words = image.u32s(entry, 2);
     const bool relative = image.u8(entry + 8) != 0;
     if (words[0] == 0) {

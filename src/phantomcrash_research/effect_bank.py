@@ -236,7 +236,7 @@ def _id_list(image: game_tables._Image, address: int, end: int) -> list[int]:
 
 def _atlas_cells(image: game_tables._Image) -> list[list[float]]:
     """Walks the constructor: push y, push x, mov ecx, cell, call."""
-    at = image.offset(ATLAS_CELLS, 1) + 3  # after push ebp; mov ebp, esp
+    at = image.offset(image.va(ATLAS_CELLS), 1) + 3  # after push ebp; mov ebp, esp
     data = image.data
     cells = []
     while len(cells) < ATLAS_CELL_COUNT:
@@ -265,10 +265,12 @@ def effect_bank(executable: bytes) -> dict:
 def _bank(executable: bytes) -> tuple[dict, set[int], set[int]]:
     """The bank, and the model and texture resources its flashes and shots draw."""
     image = game_tables._Image(executable)
+    scripts_va = image.va(SCRIPTS)
+    groups_va = image.va(GROUPS)
     definitions: dict[int, int] = {}
     scripts = []
     for script in range(SCRIPT_COUNT):
-        address = image.u32(SCRIPTS + script * 4)
+        address = image.u32(scripts_va + script * 4)
         emitters = []
         while True:
             flags, definition = struct.unpack_from("<2I", image.data, image.offset(address, 8))
@@ -281,7 +283,7 @@ def _bank(executable: bytes) -> tuple[dict, set[int], set[int]]:
         scripts.append({"id": script, "emitters": emitters})
     groups = []
     for group in range(GROUP_COUNT):
-        script_list, flash_list = struct.unpack_from("<2I", image.data, image.offset(GROUPS + group * 8, 8))
+        script_list, flash_list = struct.unpack_from("<2I", image.data, image.offset(groups_va + group * 8, 8))
         groups.append(
             {
                 "id": group,

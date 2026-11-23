@@ -64,7 +64,7 @@ SUBTITLE_LIMIT = 64
 
 
 def _light_points(image: _Image) -> list[list[float]]:
-    code = image.data[image.offset(LIGHT_POINTS_INIT, 96) :][:96]
+    code = image.data[image.offset(image.va(LIGHT_POINTS_INIT), 96) :][:96]
     pushed = []
     index = 0
     while len(pushed) < LIGHT_POINTS * 3 and index < len(code) - 4:
@@ -85,10 +85,12 @@ def _carrier_routes(image: _Image) -> list[dict]:
     Bezier segments at its speed (0x06789f, 0x0679e7); their closing, drop
     and leave segments (100) are never reached."""
     routes = []
+    routes_va = image.va(SUPPLY_ROUTES)
+    speeds_va = image.va(CARRIER_SPEEDS)
     for route in range(CARRIER_ROUTES):
-        record = SUPPLY_ROUTES + (CARRIER_FIRST_RECORD + route) * SUPPLY_ROUTE
+        record = routes_va + (CARRIER_FIRST_RECORD + route) * SUPPLY_ROUTE
         points, segments = struct.unpack_from("<2I", image.data, image.offset(record, 8))
-        (speed,) = struct.unpack_from("<f", image.data, image.offset(CARRIER_SPEEDS + route * 4, 4))
+        (speed,) = struct.unpack_from("<f", image.data, image.offset(speeds_va + route * 4, 4))
         routes.append(
             {
                 "segments": [
@@ -105,9 +107,10 @@ def _carrier_routes(image: _Image) -> list[dict]:
 
 
 def _call_ins(image: _Image) -> list[int]:
+    call_ins_va = image.va(CALL_INS)
     frames = []
     for index in range(CALL_IN_LIMIT):
-        (frame,) = struct.unpack_from("<i", image.data, image.offset(CALL_INS + index * 4, 4))
+        (frame,) = struct.unpack_from("<i", image.data, image.offset(call_ins_va + index * 4, 4))
         if frame < 0:
             break
         frames.append(frame)
@@ -117,11 +120,12 @@ def _call_ins(image: _Image) -> list[int]:
 def finale(data: bytes, tables: GameTables) -> dict:
     """``{"phases", "scripts", "call_ins", "light_points", "banners", "carrier_routes"}``."""
     image = _Image(data)
+    phase_table_va = image.va(PHASE_TABLE)
     scripts: list[list[dict]] = []
     by_address: dict[int, int] = {}
     phases = []
     for state in range(FIRST_STATE, LAST_STATE + 1):
-        row = image.data[image.offset(PHASE_TABLE + (state - FIRST_STATE) * PHASE_SIZE, PHASE_SIZE) :]
+        row = image.data[image.offset(phase_table_va + (state - FIRST_STATE) * PHASE_SIZE, PHASE_SIZE) :]
         wait, fade_in, fade_out, dissolve = struct.unpack_from("<4f", row, 0)
         (route,) = struct.unpack_from("<i", row, 0x10)
         lights = []
@@ -164,9 +168,10 @@ def ending_subtitles(data: bytes) -> dict:
     movie's 60 Hz frame is in [start, end). The texts are Shift-JIS pairs
     (0x0bdd25 reads two bytes a glyph) and are written as Unicode."""
     image = _Image(data)
+    subtitles_va = image.va(SUBTITLES)
     entries = []
     for index in range(SUBTITLE_LIMIT):
-        start, end, text = struct.unpack_from("<hhI", image.data, image.offset(SUBTITLES + index * SUBTITLE_SIZE, SUBTITLE_SIZE))
+        start, end, text = struct.unpack_from("<hhI", image.data, image.offset(subtitles_va + index * SUBTITLE_SIZE, SUBTITLE_SIZE))
         if start < 0 or end < 0:
             break
         entries.append({"start": start, "end": end, "text": image.raw_string(text).decode("cp932", errors="replace")})

@@ -273,7 +273,7 @@ def write_game_text(data: bytes, output: Path, sources=GAME_TEXT_SOURCES) -> int
                 text = path.read_text(encoding="utf-8")
                 addresses.update(int(found, 16) for found in GAME_TEXT_REFERENCE.findall(text))
     strings = {
-        f"0x{address:06x}": game_tables._plain(image.raw_string(address))
+        f"0x{address:06x}": game_tables._plain(image.raw_string(image.text_va(address)))
         for address in sorted(addresses)
     }
     notes = ("The game's text that the data files reference as {xbe:0x...}: the Shift-JIS "

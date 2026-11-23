@@ -77,9 +77,11 @@ std::optional<Json> preset(const XbeImage &image, const std::uint32_t address) {
 Json lesson_messages(const XbeImage &image, const GameTables &tables) {
   Json states = object();
   const char *names[]{"first", "second"};
+  const std::uint32_t lesson0 = image.va(lesson_tables[0]);
+  const std::uint32_t lesson1 = image.va(lesson_tables[1]);
   for (std::uint32_t state = lesson_first_state; state <= lesson_last_state; ++state) {
-    const auto usual = image.u32s(lesson_tables[0] + state * 8, 2);
-    const auto other = image.u32s(lesson_tables[1] + state * 8, 2);
+    const auto usual = image.u32s(lesson0 + state * 8, 2);
+    const auto other = image.u32s(lesson1 + state * 8, 2);
     Json entry = object();
     for (std::size_t k = 0; k < 2; ++k) {
       if (usual[k] != 0) {
@@ -133,11 +135,13 @@ Json enemy_path(ByteView data) {
 }
 
 Json stage_environments(const XbeImage &image) {
+  const std::uint32_t sun_va = image.va(sun_directions);
+  const std::uint32_t presets_va = image.va(presets);
   Json stages = array();
   for (int stage = 0; stage < stage_count; ++stage) {
     const auto index = static_cast<std::uint32_t>(stage);
-    const auto direction = image.f32s(sun_directions + 12 * index, 3);
-    const std::uint32_t first = image.u32(presets + 4 * index);
+    const auto direction = image.f32s(sun_va + 12 * index, 3);
+    const std::uint32_t first = image.u32(presets_va + 4 * index);
     Json list = array();
     for (int k = 0; k < preset_limit; ++k) {
       auto found = preset(image, first + static_cast<std::uint32_t>(k) * preset_size);
@@ -156,7 +160,7 @@ Json stage_environments(const XbeImage &image) {
 Json chatter_tables(const XbeImage &image, const GameTables &tables) {
   Json chances = object();
   for (const auto &[kind, address] : chatter_chances) {
-    put(chances, kind, rounded_list(image.f32s(address, chatter_events), 4));
+    put(chances, kind, rounded_list(image.f32s(image.va(address), chatter_events), 4));
   }
   Json scripts = array();
   std::map<std::uint32_t, std::size_t> by_address;
@@ -174,21 +178,23 @@ Json chatter_tables(const XbeImage &image, const GameTables &tables) {
     }
     return integer(by_address[address]);
   };
+  const std::uint32_t chatter_lines_va = image.va(chatter_lines);
   Json line_tables = array();
   for (int table = 0; table < chatter_table_count; ++table) {
     Json entries = array();
     for (std::uint32_t event = 0; event < chatter_events; ++event) {
-      const std::uint32_t address =
-          image.u32(chatter_lines + (static_cast<std::uint32_t>(table) * chatter_events + event) * 4);
+      const std::uint32_t address = image.u32(
+          chatter_lines_va + (static_cast<std::uint32_t>(table) * chatter_events + event) * 4);
       push(entries, address == 0 ? null() : script_at(address));
     }
     push(line_tables, std::move(entries));
   }
   Json defeats = array();
-  for (const std::uint32_t address : image.u32s(ranker_defeat_lines, ranker_defeat_count)) {
+  for (const std::uint32_t address :
+       image.u32s(image.va(ranker_defeat_lines), ranker_defeat_count)) {
     push(defeats, address == 0 ? null() : script_at(address));
   }
-  return object({{"gates", integers(image.i16s(chatter_gates, chatter_events))},
+  return object({{"gates", integers(image.i16s(image.va(chatter_gates), chatter_events))},
                  {"chances", chances},
                  {"scripts", scripts},
                  {"tables", line_tables},

@@ -176,7 +176,7 @@ Json id_list(const XbeImage &image, std::uint32_t address, std::uint32_t end) {
 // Walks the constructor: push y, push x, mov ecx, cell, call.
 Json atlas_cell_list(const XbeImage &image) {
   const ByteView data = image.data();
-  std::size_t at = image.offset(atlas_cells, 1) + 3; // after push ebp; mov ebp, esp
+  std::size_t at = image.offset(image.va(atlas_cells), 1) + 3; // after push ebp; mov ebp, esp
   Json cells = array();
   for (std::size_t count = 0; count < atlas_cell_count; ++count) {
     std::vector<double> pushed;
@@ -206,8 +206,10 @@ Json effect_bank(const XbeImage &image, const GameTables &tables, EffectResource
   std::map<std::uint32_t, std::size_t> definitions;
   std::vector<std::uint32_t> by_index;
   Json script_list = array();
+  const std::uint32_t scripts_va = image.va(scripts);
+  const std::uint32_t groups_va = image.va(groups);
   for (int script = 0; script < script_count; ++script) {
-    std::uint32_t address = image.u32(scripts + static_cast<std::uint32_t>(script) * 4);
+    std::uint32_t address = image.u32(scripts_va + static_cast<std::uint32_t>(script) * 4);
     Json emitters = array();
     for (;;) {
       image.require(address, 8);
@@ -229,7 +231,7 @@ Json effect_bank(const XbeImage &image, const GameTables &tables, EffectResource
   }
   Json group_list = array();
   for (int group = 0; group < group_count; ++group) {
-    const auto words = image.u32s(groups + static_cast<std::uint32_t>(group) * 8, 2);
+    const auto words = image.u32s(groups_va + static_cast<std::uint32_t>(group) * 8, 2);
     push(group_list, object({{"id", integer(group)},
                              {"scripts", id_list(image, words[0], end_scripts)},
                              {"flashes", id_list(image, words[1], end_flashes)}}));

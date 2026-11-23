@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace phantomcrash {
 
@@ -21,12 +22,15 @@ namespace phantomcrash {
 inline constexpr int converted_assets_version = 6;
 
 struct GameDataPaths {
-  std::filesystem::path europe;   // artifacts/europe
+  std::filesystem::path europe;   // artifacts/<region> (kept named `europe` for source compat)
   std::filesystem::path files;    // the disc's files
   std::filesystem::path metadata; // disc.json, xbe.json
   std::filesystem::path assets;   // the converted assets
+  std::string region{"europe"};   // installed region: "europe" or "usa"
 };
 
+[[nodiscard]] GameDataPaths game_data_paths_for_region(const std::filesystem::path &root,
+                                                       std::string_view region);
 [[nodiscard]] GameDataPaths game_data_paths(const std::filesystem::path &root);
 
 struct GameDataStatus {
@@ -38,5 +42,7 @@ struct GameDataStatus {
 
 // Reads the manifests and checks file sizes; does not hash anything.
 [[nodiscard]] GameDataStatus game_data_status(const std::filesystem::path &root);
+[[nodiscard]] GameDataStatus game_data_status(const std::filesystem::path &root,
+                                              std::string_view region);
 
 } // namespace phantomcrash

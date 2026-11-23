@@ -18,15 +18,17 @@ from . import game_tables, gltf, model, png, texture_pack
 
 def ship_table(executable: bytes) -> dict:
     image = game_tables._Image(executable)
+    routes_va = image.va(0x21C768)
+    last_segment_va = image.va(0x21C788)
     routes = {}
     for stage in range(8):
-        address = image.u32(0x21C768 + stage * 4)
-        count = image.u32(0x21C788 + stage * 4) + 1
+        address = image.u32(routes_va + stage * 4)
+        count = image.u32(last_segment_va + stage * 4) + 1
         routes[str(stage)] = [
             [list(struct.unpack_from("<3f", executable, image.offset(address + segment * 48 + p * 12, 12)))
              for p in range(4)] for segment in range(count)
         ]
-    number = lambda address: struct.unpack_from("<f", executable, image.offset(address, 4))[0]
+    number = lambda address: struct.unpack_from("<f", executable, image.offset(image.va(address), 4))[0]
     models = []
     for night in (False, True):
         shift = 4 if night else 0

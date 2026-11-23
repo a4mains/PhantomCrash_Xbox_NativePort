@@ -1,10 +1,10 @@
-// Installs the game data under <root>/artifacts/europe, doing only what is
-// out of date: the disc is extracted only when its files are missing or
-// changed, and the assets are converted only when they are missing,
-// unfinished or from another converter version. Work goes to a staging
-// folder that replaces the old one when it is complete, so a failed or
-// interrupted run leaves the previous data as it was. mods/ and the saves
-// (in the user's app-data folder) are never touched.
+// Installs the game data under <root>/artifacts/<region> ("europe" or "usa"),
+// doing only what is out of date: the disc is extracted only when its files are
+// missing or changed, and the assets are converted only when they are missing,
+// unfinished or from another converter version. Work goes to a staging folder
+// that replaces the old one when it is complete, so a failed or interrupted run
+// leaves the previous data as it was. mods/ and the saves (in the user's
+// app-data folder) are never touched.
 #pragma once
 
 #include "extract.hpp"
@@ -12,13 +12,15 @@
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
+#include <string>
 
 namespace phantomcrash::extract {
 
 struct InstallOptions {
-  std::optional<std::filesystem::path> disc; // needed only when the files must be extracted
-  bool convert{};                            // convert even when the assets are current
-  bool verify{};                             // hash every extracted file against disc.json
+  std::optional<std::filesystem::path> disc;       // ISO needed when extracting a disc image
+  std::optional<std::filesystem::path> source_dir; // extracted directory (default.xbe + Media/)
+  bool convert{};                                  // convert even when the assets are current
+  bool verify{};                                   // hash every extracted file against disc.json
 };
 
 // Thrown when the disc's files must be extracted and no disc was given.
@@ -29,6 +31,7 @@ public:
 
 struct InstallResult {
   bool extracted{}, converted{};
+  std::string region{"europe"};
 };
 
 InstallResult install_game_data(const std::filesystem::path &root, const InstallOptions &options,

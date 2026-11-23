@@ -45,7 +45,7 @@ AREA_PATHS = (0x697, 0x698, 0x699)
 
 
 def _objects(image: game_tables._Image, stage: int) -> list[tuple[int, int]]:
-    (address,) = struct.unpack_from("<I", image.data, image.offset(STAGE_OBJECTS + stage * 4, 4))
+    (address,) = struct.unpack_from("<I", image.data, image.offset(image.va(STAGE_OBJECTS) + stage * 4, 4))
     out = []
     while True:
         slot, kind, _, _ = OBJECT_ENTRY.unpack_from(image.data, image.offset(address + len(out) * 16, 16))
@@ -66,7 +66,7 @@ def convert_stages(
     stem of the pack it is in (``b00_shinjuku``)."""
     image = game_tables._Image(executable)
     resources = {resource.id: resource for resource in game_tables.load(executable).resources}
-    models = struct.unpack_from(f"<{CITY_STAGES}I", image.data, image.offset(STAGE_MODELS, 4 * CITY_STAGES))
+    models = struct.unpack_from(f"<{CITY_STAGES}I", image.data, image.offset(image.va(STAGE_MODELS), 4 * CITY_STAGES))
     paths: dict[int, str] = {}
     for resource in AREA_PATHS:
         data = read(resource)

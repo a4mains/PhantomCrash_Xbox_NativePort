@@ -101,7 +101,7 @@ def _floats(image: _Image, address: int, count: int) -> list[float]:
 
 
 def _class(image: _Image, index: int) -> dict:
-    address = CLASSES + index * CLASS_SIZE
+    address = image.va(CLASSES) + index * CLASS_SIZE
     words = _ints(image, address, 11)
     return {
         "name": _text(image, words[0] & 0xFFFFFFFF),
@@ -126,11 +126,12 @@ def _record(index: int, count: int) -> int:
 def _portraits(image: _Image, tables: GameTables | None, entrant: int) -> list:
     if entrant == -1:
         return []
-    crew = _short(image, ENTRANTS + _record(entrant, ENTRANT_COUNT) * ENTRANT_SIZE)
-    crew_address = CREWS + _record(crew, CREW_COUNT) * CREW_SIZE
+    crew = _short(image, image.va(ENTRANTS) + _record(entrant, ENTRANT_COUNT) * ENTRANT_SIZE)
+    crew_address = image.va(CREWS) + _record(crew, CREW_COUNT) * CREW_SIZE
+    pilots_va = image.va(PILOTS)
     pilots = [_short(image, crew_address), _short(image, crew_address + 2)]
     sprites = [
-        _short(image, PILOTS + _record(pilot, PILOT_COUNT) * PILOT_SIZE + PILOT_SPRITE)
+        _short(image, pilots_va + _record(pilot, PILOT_COUNT) * PILOT_SIZE + PILOT_SPRITE)
         for pilot in pilots
     ]
     if tables is None:
@@ -139,7 +140,7 @@ def _portraits(image: _Image, tables: GameTables | None, entrant: int) -> list:
 
 
 def _contest(image: _Image, tables: GameTables | None, index: int) -> dict:
-    address = CONTESTS + index * CONTEST_SIZE
+    address = image.va(CONTESTS) + index * CONTEST_SIZE
     words = _ints(image, address, 17)
     return {
         "name": _text(image, words[0] & 0xFFFFFFFF),
@@ -157,19 +158,19 @@ def _contest(image: _Image, tables: GameTables | None, index: int) -> dict:
 
 
 def _team(image: _Image, index: int) -> dict:
-    words = _ints(image, TEAMS + index * TEAM_SIZE, 1 + TEAM_MEMBERS)
+    words = _ints(image, image.va(TEAMS) + index * TEAM_SIZE, 1 + TEAM_MEMBERS)
     return {"leader": words[0], "members": words[1:]}
 
 
 def _entrant(image: _Image, index: int) -> dict:
     pilot, robot, ai_profile, level = struct.unpack_from(
-        "<4h", image.data, image.offset(ENTRANTS + index * ENTRANT_SIZE, ENTRANT_SIZE)
+        "<4h", image.data, image.offset(image.va(ENTRANTS) + index * ENTRANT_SIZE, ENTRANT_SIZE)
     )
     return {"pilot": pilot, "robot": robot, "ai_profile": ai_profile, "level": level}
 
 
 def _day(image: _Image, day: int) -> dict:
-    words = _ints(image, CALENDAR + day * DAY_SIZE, DAY_SIZE // 4)
+    words = _ints(image, image.va(CALENDAR) + day * DAY_SIZE, DAY_SIZE // 4)
     return {
         "venues": words[VENUE_WORD : VENUE_WORD + VENUE_COUNT],
         "dealers": words[:VENUE_WORD],

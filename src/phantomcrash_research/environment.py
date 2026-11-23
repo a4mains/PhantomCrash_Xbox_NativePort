@@ -65,10 +65,12 @@ def _preset(image: game_tables._Image, address: int) -> dict | None:
 def stage_environments(executable: bytes) -> list[dict]:
     """Each stage's light direction and its presets, first one in use."""
     image = game_tables._Image(executable)
+    sun_va = image.va(SUN_DIRECTIONS)
+    presets_va = image.va(PRESETS)
     stages = []
     for stage in range(STAGE_COUNT):
-        direction = struct.unpack_from("<3f", image.data, image.offset(SUN_DIRECTIONS + 12 * stage, 12))
-        first = image.u32(PRESETS + 4 * stage)
+        direction = struct.unpack_from("<3f", image.data, image.offset(sun_va + 12 * stage, 12))
+        first = image.u32(presets_va + 4 * stage)
         presets = []
         for index in range(PRESET_LIMIT):
             preset = _preset(image, first + index * PRESET_SIZE)

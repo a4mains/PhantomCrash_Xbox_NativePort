@@ -70,7 +70,7 @@ Json slice(const std::vector<std::int32_t> &words, const std::size_t from, const
 }
 
 Json class_json(const XbeImage &image, const int index) {
-  const std::uint32_t address = at(classes, index, class_size);
+  const std::uint32_t address = at(image.va(classes), index, class_size);
   const auto words = file_ints(image, address, 11);
   Json legs = array();
   for (std::size_t k = 6; k < 10; ++k) {
@@ -97,11 +97,12 @@ Json portraits(const XbeImage &image, const GameTables &tables, const int entran
   if (entrant == -1) {
     return out;
   }
-  const int crew = image.i16(at(entrants, record(entrant, entrant_count), entrant_size));
-  const std::uint32_t crew_address = at(crews, record(crew, crew_count), crew_size);
+  const int crew = image.i16(at(image.va(entrants), record(entrant, entrant_count), entrant_size));
+  const std::uint32_t crew_address = at(image.va(crews), record(crew, crew_count), crew_size);
+  const std::uint32_t pilots_va = image.va(pilots);
   for (const std::uint32_t member : {crew_address, crew_address + 2}) {
     const int pilot = image.i16(member);
-    const int sprite = image.i16(at(pilots, record(pilot, pilot_count), pilot_size) + pilot_sprite);
+    const int sprite = image.i16(at(pilots_va, record(pilot, pilot_count), pilot_size) + pilot_sprite);
     if (sprite >= 0) {
       push(out, sprite_json(tables, sprite));
     }
@@ -110,7 +111,7 @@ Json portraits(const XbeImage &image, const GameTables &tables, const int entran
 }
 
 Json contest_json(const XbeImage &image, const GameTables &tables, const int index) {
-  const std::uint32_t address = at(contests, index, contest_size);
+  const std::uint32_t address = at(image.va(contests), index, contest_size);
   const auto words = file_ints(image, address, 17);
   Json team_list = array();
   for (std::size_t k = 8; k < 8 + contest_teams; ++k) {
@@ -132,7 +133,7 @@ Json contest_json(const XbeImage &image, const GameTables &tables, const int ind
 }
 
 Json day_json(const XbeImage &image, const int day) {
-  const auto words = file_ints(image, at(calendar, day, day_size), day_size / 4);
+  const auto words = file_ints(image, at(image.va(calendar), day, day_size), day_size / 4);
   return object({{"venues", slice(words, venue_word, venue_word + venue_count)},
                  {"dealers", slice(words, 0, venue_word)},
                  {"chips", integer(words[6])},
@@ -155,14 +156,16 @@ Json town_tables(const XbeImage &image, const GameTables &tables) {
   for (int day = 0; day < days; ++day) {
     push(day_list, day_json(image, day));
   }
+  const std::uint32_t teams_va = image.va(teams);
   Json team_list = array();
   for (int index = 0; index < team_count; ++index) {
-    const auto words = file_ints(image, at(teams, index, team_size), 1 + team_members);
+    const auto words = file_ints(image, at(teams_va, index, team_size), 1 + team_members);
     push(team_list, object({{"leader", integer(words[0])}, {"members", slice(words, 1, words.size())}}));
   }
+  const std::uint32_t entrants_va = image.va(entrants);
   Json entrant_list = array();
   for (int index = 0; index < entrant_count; ++index) {
-    const std::uint32_t address = at(entrants, index, entrant_size);
+    const std::uint32_t address = at(entrants_va, index, entrant_size);
     image.require(address, entrant_size);
     push(entrant_list, object({{"pilot", integer(image.i16(address))},
                                {"robot", integer(image.i16(address + 2))},
